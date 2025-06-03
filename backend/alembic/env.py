@@ -88,7 +88,7 @@ import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 # ✅ 데이터베이스 및 모델 import
-from database import Base
+from db import Base
 from models import user, subject, plan, row_plan, refresh_token  # 이 줄에 오류 없도록 models/*.py가 완성돼 있어야 함
 
 # ✅ MetaData 설정

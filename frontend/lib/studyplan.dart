@@ -1,7 +1,9 @@
-// study_plan.dart
-import 'package:flutter/material.dart';
-import 'study_result.dart';
 
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:table_calendar/table_calendar.dart';
 
 class StudyPlanPage extends StatefulWidget {
   const StudyPlanPage({super.key});
@@ -10,255 +12,393 @@ class StudyPlanPage extends StatefulWidget {
   State<StudyPlanPage> createState() => _StudyPlanPageState();
 }
 
-class _StudyPlanPageState extends State<StudyPlanPage> {
-  final List<String> examTypes = ['학교 시험', '자격증', '어학 시험', '수능', '기타'];
-  String selectedExamType = '학교 시험';
-  DateTime? examDate;
-  DateTime? studyStartDate;
-  DateTime? studyEndDate;
-  final TextEditingController examNameController = TextEditingController();
-  final List<String> materials = ['사용자 입력', '책·인강', '개수', '챕터/강의, 주차 등등', '반복 횟수'];
+class _StudyPlanPageState extends State<StudyPlanPage> with TickerProviderStateMixin {
+  late TabController _tabController;
+  List<Map<String, dynamic>> subjects = [];
+  bool isNewSubject = true;
 
-  List<String> subjects = ['A 과목'];
-  String selectedSubject = 'A 과목';
-  final TextEditingController newMaterialController = TextEditingController();
+final TextEditingController fieldController = TextEditingController();         // 시험 분야
+final TextEditingController testNameController = TextEditingController();      // 시험 이름
+final TextEditingController materialNameController = TextEditingController();  // 자료명
+final TextEditingController customTypeController = TextEditingController();    // 사용자 입력 유형
 
-  static const Color cream = Color(0xFFFBFCF7);
-  static const Color cobaltBlue = Color(0xFF004377);
+DateTime? testDate;                 // 시험 날짜
+DateTime _focusedTestDay = DateTime.now();  // 시험 달력 포커스
 
-  void _addMaterial() {
-    final newMaterial = newMaterialController.text.trim();
-    if (newMaterial.isNotEmpty) {
-      setState(() {
-        materials.add(newMaterial);
-        newMaterialController.clear();
-      });
-    }
-  }
+DateTime? startDate;
+DateTime? endDate;
+DateTime _focusedStudyDay = DateTime.now();
 
-  void _navigateToResultPage() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const StudyResultPage()),
-    );
-  }
+
+  String selectedType = '책';
+  int repeatCount = 1;
+  List<Map<String, dynamic>> studyMaterials = [];
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: cream,
-      appBar: AppBar(
-        title: const Text('AI 학습 계획 세우기'),
-        backgroundColor: cream,
-        foregroundColor: cobaltBlue,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+  void initState() {
+    super.initState();
+    _loadSubjects();
+  }
+
+ Future<void> _loadSubjects() async {
+  final prefs = await SharedPreferences.getInstance();
+  final token = prefs.getString('accessToken');
+  if (token == null) {
+    print('❌ accessToken 없음');
+    return;
+  }
+
+  final response = await http.get(
+    Uri.parse('http://172.16.11.249:8000/subject/list'),
+    headers: {'Authorization': 'Bearer $token'},
+  );
+
+  if (response.statusCode == 200) {
+    final List<dynamic> data = jsonDecode(utf8.decode(response.bodyBytes));
+if (!mounted) return; // ← 이 줄만 추가하면 해결됩니다.
+
+    setState(() {
+      subjects = data.cast<Map<String, dynamic>>();
+      _tabController = TabController(length: subjects.length + 1, vsync: this);
+    });
+  } else {
+    print('❌ subject 불러오기 실패: ${response.statusCode}');
+  }
+}
+
+  Future<void> saveDataToDB() async {
+    final prefs = await SharedPreferences.getInstance();
+final token = prefs.getString('accessToken');
+if (token == null) {
+  print('❌ accessToken 없음');
+  return;
+}
+
+print('📤 저장 요청 시작: 시험명: ${testNameController.text}, 자료 개수: ${studyMaterials.length}');
+
+final subjectResponse = await http.post(
+  Uri.parse('http://172.16.11.249:8000/subject/'),
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': 'Bearer $token',
+  },
+  body: jsonEncode({
+  'field': fieldController.text,
+  'test_name': testNameController.text,
+  'test_date': testDate?.toIso8601String(),
+  'start_date': startDate?.toIso8601String(),
+  'end_date': endDate?.toIso8601String(),
+}),
+
+);
+
+if (subjectResponse.statusCode != 200) {
+  print('❌ subject 저장 실패');
+  return;
+}
+
+final subjectId = jsonDecode(subjectResponse.body)['subject_id'];
+print('✅ subject 저장 성공. ID: $subjectId');
+print('🧪 studyMaterials.length: ${studyMaterials.length}');
+print('🧾 studyMaterials 내용: $studyMaterials');
+
+for (int i = 0; i < studyMaterials.length; i++) {
+  final material = studyMaterials[i];
+  final response = await http.post(
+    Uri.parse('http://172.16.11.249:8000/row-plan/'),
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $token',
+    },
+    body: jsonEncode({
+      'subject_id': subjectId,
+      'row_plan_name': material['name'],
+      'type': material['type'],
+      'repetition': material['repetition'],
+      'ranking': i + 1,
+    }),
+  );
+
+  print("📤 [$i] row_plan 저장 응답: ${response.statusCode}");
+  print("📄 [$i] 응답 내용: ${response.body}");
+}
+
+  }
+
+  Future<void> saveAndRunAIAndMove() async {
+    await saveDataToDB();
+
+    if (!context.mounted) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const AlertDialog(
+        title: Text('AI 실행 중'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            _buildSubjectTabs(),
-            const SizedBox(height: 24),
-            const Text('시험 분야', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            _buildExamTypeSelector(),
-            const SizedBox(height: 24),
-            _buildExamNameField(),
-            const SizedBox(height: 24),
-            const Text('시험 날짜', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            _buildExamDatePicker(),
-            const SizedBox(height: 24),
-            const Text('공부기간', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            _buildStudyPeriodPicker(),
-            const SizedBox(height: 32),
-            const Text('사용할 학습자료 목록', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 12),
-            _buildMaterialsChips(),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: newMaterialController,
-                    decoration: const InputDecoration(
-                      hintText: '자료 이름 입력',
-                      filled: true,
-                      fillColor: Color(0xFFFBFCF7),
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                ElevatedButton(
-                  onPressed: _addMaterial,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Color(0xFF004377),
-                    foregroundColor: Color(0xFFFBFCF7),
-                  ),
-                  child: const Text('추가'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 40),
-            Center(
-              child: Column(
-                children: [
-                  GestureDetector(
-                    onTap: _navigateToResultPage,
-                    child: _roundedButton('저장하기'),
-                  ),
-                  const SizedBox(height: 16),
-                  _roundedButton('삭제하기'),
-                ],
-              ),
-            )
+            Text('AI가 계획을 생성하는 중입니다...'),
+            SizedBox(height: 20),
+            CircularProgressIndicator(),
           ],
         ),
       ),
     );
-  }
 
-  Widget _roundedButton(String label) {
-    return Container(
-      width: 280,
-      padding: const EdgeInsets.symmetric(vertical: 20),
-      decoration: BoxDecoration(
-        color: Color(0xFFFBFCF7),
-        borderRadius: BorderRadius.circular(40),
-        boxShadow: [
-          BoxShadow(color: Colors.grey.shade300, offset: const Offset(2, 2), blurRadius: 6),
-        ],
-      ),
-      child: Center(
-        child: Text(
-          label,
-          style: const TextStyle(fontSize: 16, color: Color(0xFF004377)),
+    final prefs = await SharedPreferences.getInstance();
+final token = prefs.getString('accessToken');
+if (token == null) return;
+
+final response = await http.post(
+  Uri.parse('http://172.16.11.249:8000/plan/schedule'),
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': 'Bearer $token',
+  },
+);
+
+    Navigator.of(context).pop(); // 로딩창 닫기
+
+    if (response.statusCode == 200 && context.mounted) {
+      Navigator.pushReplacementNamed(context, '/home');
+    } else if (context.mounted) {
+      showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('실패'),
+          content: Text('AI 계획 생성 실패: ${response.body}'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('확인')),
+          ],
         ),
-      ),
-    );
+      );
+    }
   }
 
-  Widget _buildSubjectTabs() {
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(color: Color(0xFF004377)),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      child: Row(
-        children: [
-          ...subjects.map((s) => Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 6),
-                child: TextButton(
-                  onPressed: () {
+  Future<void> deleteAllStudyData() async {
+    final prefs = await SharedPreferences.getInstance();
+final token = prefs.getString('accessToken');
+if (token == null) return;
+
+final response = await http.delete(
+  Uri.parse('http://172.16.11.249:8000/subject/delete-all'),
+  headers: {
+    'Authorization': 'Bearer $token',
+  },
+);
+
+
+    if (response.statusCode == 200) {
+      setState(() {
+        studyMaterials.clear();
+      });
+    }
+  }
+  @override
+  Widget build(BuildContext context) {
+    return DefaultTabController(
+      length: subjects.length + 1,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('학습 계획 입력'),
+          bottom: subjects.isNotEmpty
+              ? TabBar(
+                  controller: _tabController,
+                  isScrollable: true,
+                  labelColor: Colors.blue,
+                  unselectedLabelColor: Colors.black,
+                  indicatorColor: Colors.transparent,
+                  onTap: (index) {
+                    if (index == subjects.length) {
+                     setState(() {
+  isNewSubject = true;
+  fieldController.clear();       // ← 수정됨
+  testNameController.clear();    // ← 수정됨
+  testDate = null;               // ← 수정됨
+  startDate = null;
+  endDate = null;
+  studyMaterials.clear();
+});
+
+                    } else {
+                      final subject = subjects[index];
+
+setState(() {
+  isNewSubject = false;
+  fieldController.text = subject['field'];
+  testNameController.text = subject['test_name'];
+  testDate = DateTime.parse(subject['test_date']);
+  startDate = DateTime.parse(subject['start_date']);
+  endDate = DateTime.parse(subject['end_date']);
+});
+
+
+                    }
+                  },
+                  tabs: [
+                    ...subjects.map((subj) => Tab(text: subj['test_name'])),
+                    const Tab(icon: Icon(Icons.add)),
+                  ],
+                )
+              : null,
+        ),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+             const Text('시험 정보', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+TextField(controller: fieldController, decoration: InputDecoration(labelText: '시험 분야')),
+TextField(controller: testNameController, decoration: InputDecoration(labelText: '시험 이름')),
+const SizedBox(height: 10),
+
+
+              const Text('시험 날짜 선택', style: TextStyle(fontWeight: FontWeight.bold)),
+              TableCalendar(
+                firstDay: DateTime.utc(2023, 1, 1),
+                lastDay: DateTime.utc(2030, 12, 31),
+                focusedDay: _focusedTestDay,                            // ✅ 수정
+selectedDayPredicate: (day) => isSameDay(testDate, day), // ✅ 수정
+onDaySelected: (selectedDay, focusedDay) {
+  setState(() {
+    testDate = selectedDay;                             // ✅ 수정
+    _focusedTestDay = focusedDay;                       // ✅ 수정
+  });
+},
+
+                calendarFormat: CalendarFormat.month,
+                rowHeight: 38,
+              ),
+              const SizedBox(height: 20),
+              const Divider(),
+              const Text('공부 기간 선택', style: TextStyle(fontWeight: FontWeight.bold)),
+              TableCalendar(
+                firstDay: DateTime.utc(2023, 1, 1),
+                lastDay: DateTime.utc(2030, 12, 31),
+                focusedDay: _focusedStudyDay,
+                rangeStartDay: startDate,
+                rangeEndDay: endDate,
+                rangeSelectionMode: RangeSelectionMode.toggledOn,
+                onDaySelected: (selectedDay, focusedDay) {
+                  setState(() {
+                    _focusedStudyDay = focusedDay;
+                    if (startDate != null && endDate == null && selectedDay.isAfter(startDate!)) {
+                      endDate = selectedDay;
+                    } else {
+                      startDate = selectedDay;
+                      endDate = null;
+                    }
+                  });
+                },
+                onPageChanged: (focusedDay) {
+                  _focusedStudyDay = focusedDay;
+                },
+                calendarStyle: CalendarStyle(
+                  rangeHighlightColor: Colors.blue.shade200,
+                  withinRangeTextStyle: const TextStyle(color: Colors.white),
+                  rangeStartDecoration: const BoxDecoration(color: Colors.blue, shape: BoxShape.circle),
+                  rangeEndDecoration: const BoxDecoration(color: Colors.blue, shape: BoxShape.circle),
+                ),
+                rowHeight: 38,
+              ),
+              const SizedBox(height: 20),
+              const Divider(),
+              const Text('학습 자료 추가', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              TextField(controller: materialNameController, decoration: const InputDecoration(labelText: '자료명')),
+              Row(children: [
+                DropdownButton<String>(
+                  value: selectedType,
+                  items: ['책', '인강', '직접입력'].map((type) {
+                    return DropdownMenuItem(value: type, child: Text(type));
+                  }).toList(),
+                  onChanged: (value) {
                     setState(() {
-                      selectedSubject = s;
+                      selectedType = value!;
                     });
                   },
-                  child: Text(
-                    s,
-                    style: TextStyle(
-                      fontWeight: s == selectedSubject ? FontWeight.bold : FontWeight.normal,
-                      color: s == selectedSubject ? Color(0xFF004377) : Colors.black,
-                    ),
+                ),
+                if (selectedType == '직접입력')
+                  Expanded(
+                    child: TextField(controller: customTypeController, decoration: const InputDecoration(labelText: '유형 입력')),
+                  ),
+              ]),
+              const SizedBox(height: 10),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.start,
+                children: [
+                  const Text('반복 횟수:  '),
+                  DropdownButton<int>(
+                    value: repeatCount,
+                    items: List.generate(10, (index) => index + 1)
+                        .map((count) => DropdownMenuItem<int>(
+                              value: count,
+                              child: Text('$count회'),
+                            ))
+                        .toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        repeatCount = value!;
+                      });
+                    },
+                  ),
+                ],
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  final type = selectedType == '직접입력' ? customTypeController.text : selectedType;
+                  setState(() {
+                    studyMaterials.add({
+                      'name': materialNameController.text,
+                      'type': type,
+                      'repetition': repeatCount,
+                    });
+                    materialNameController.clear();
+                    customTypeController.clear();
+                    selectedType = '책';
+                    repeatCount = 1;
+                  });
+                },
+                child: const Text('자료 추가'),
+              ),
+              const SizedBox(height: 10),
+              ...studyMaterials.map((item) {
+                return Card(
+                  child: ListTile(
+                    title: Text(item['name']),
+                    subtitle: Text('유형: ${item['type']}, 반복: ${item['repetition']}회'), // ✅ 수정
+
+                  ),
+                );
+              }),
+              const SizedBox(height: 20),
+              Center(
+                child: SizedBox(
+                  width: 200,
+                  height: 50,
+                  child: ElevatedButton(
+                    onPressed: saveAndRunAIAndMove,
+                    child: const Text('저장하기', style: TextStyle(fontSize: 18)),
                   ),
                 ),
-              )),
-          IconButton(
-            icon: const Icon(Icons.add, size: 20, color: Color(0xFF004377)),
-            onPressed: () {
-              setState(() {
-                subjects.add('과목 ${subjects.length + 1}');
-              });
-            },
-          )
-        ],
-      ),
-    );
-  }
-
-  Widget _buildExamTypeSelector() {
-    return Wrap(
-      spacing: 12,
-      children: examTypes.map((type) => Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Radio<String>(
-            value: type,
-            groupValue: selectedExamType,
-            onChanged: (value) {
-              setState(() {
-                selectedExamType = value!;
-              });
-            },
-            activeColor: Color(0xFF004377),
-          ),
-          Text(type),
-        ],
-      )).toList(),
-    );
-  }
-
-  Widget _buildExamNameField() {
-    return Row(
-      children: [
-        const Text('시험명', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black)),
-        const SizedBox(width: 16),
-        Expanded(
-          child: TextField(
-            controller: examNameController,
-            decoration: const InputDecoration(
-              hintText: '사용자 지정',
-              hintStyle: TextStyle(color: Colors.grey),
-              isDense: true,
-              border: InputBorder.none,
-            ),
-            textAlign: TextAlign.start,
+              ),
+              const SizedBox(height: 12),
+              Center(
+                child: SizedBox(
+                  width: 200,
+                  height: 50,
+                  child: ElevatedButton(
+                    onPressed: deleteAllStudyData,
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                    child: const Text('삭제하기', style: TextStyle(fontSize: 18)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 40),
+            ],
           ),
         ),
-      ],
-    );
-  }
-
-  Widget _buildExamDatePicker() {
-    return CalendarDatePicker(
-      initialDate: examDate ?? DateTime.now(),
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2100),
-      onDateChanged: (date) => setState(() => examDate = date),
-    );
-  }
-
-  Widget _buildStudyPeriodPicker() {
-    return CalendarDatePicker(
-      initialDate: studyStartDate ?? DateTime.now(),
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2100),
-      onDateChanged: (date) => setState(() => studyStartDate = date),
-    );
-  }
-
-  Widget _buildMaterialsChips() {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        ...materials.map((m) => Chip(
-              label: Text(m),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-                side: const BorderSide(color: Color(0xFF004377)),
-              ),
-              backgroundColor: Colors.transparent,
-            )),
-        const Chip(
-          label: Text('X'),
-          backgroundColor: Colors.transparent,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.all(Radius.circular(10)),
-            side: BorderSide(color: Color(0xFF004377)),
-          ),
-        )
-      ],
+      ),
     );
   }
 }
