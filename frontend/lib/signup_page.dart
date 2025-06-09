@@ -85,7 +85,7 @@ class _SignUpPageState extends State<SignUpPage> {
 
   Future<void> _signUp() async {
     print('회원가입 API 요청 시작');
-    final url = Uri.parse('http://172.16.11.249:8000/user/signup');
+    final url = Uri.parse('http://192.168.35.189:8000/user/signup');
     final Map<String, dynamic> signupData = {
       "login_id": _idController.text.trim(),
       "password": _pwController.text.trim(),

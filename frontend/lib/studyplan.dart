@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -49,7 +48,7 @@ DateTime _focusedStudyDay = DateTime.now();
   }
 
   final response = await http.get(
-    Uri.parse('http://172.16.11.249:8000/subject/list'),
+    Uri.parse('http://192.168.35.189:8000/subject/list'),
     headers: {'Authorization': 'Bearer $token'},
   );
 
@@ -77,7 +76,7 @@ if (token == null) {
 print('📤 저장 요청 시작: 시험명: ${testNameController.text}, 자료 개수: ${studyMaterials.length}');
 
 final subjectResponse = await http.post(
-  Uri.parse('http://172.16.11.249:8000/subject/'),
+  Uri.parse('http://192.168.35.189:8000/subject/'),
   headers: {
     'Content-Type': 'application/json',
     'Authorization': 'Bearer $token',
@@ -105,7 +104,7 @@ print('🧾 studyMaterials 내용: $studyMaterials');
 for (int i = 0; i < studyMaterials.length; i++) {
   final material = studyMaterials[i];
   final response = await http.post(
-    Uri.parse('http://172.16.11.249:8000/row-plan/'),
+    Uri.parse('http://192.168.35.189:8000/row-plan/'),
     headers: {
       'Content-Type': 'application/json',
       'Authorization': 'Bearer $token',
@@ -151,7 +150,7 @@ final token = prefs.getString('accessToken');
 if (token == null) return;
 
 final response = await http.post(
-  Uri.parse('http://172.16.11.249:8000/plan/schedule'),
+  Uri.parse('http://192.168.35.189:8000/plan/schedule'),
   headers: {
     'Content-Type': 'application/json',
     'Authorization': 'Bearer $token',
@@ -182,7 +181,7 @@ final token = prefs.getString('accessToken');
 if (token == null) return;
 
 final response = await http.delete(
-  Uri.parse('http://172.16.11.249:8000/subject/delete-all'),
+  Uri.parse('http://192.168.35.189:8000/subject/delete-all'),
   headers: {
     'Authorization': 'Bearer $token',
   },

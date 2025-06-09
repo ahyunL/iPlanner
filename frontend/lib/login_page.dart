@@ -26,7 +26,7 @@ class _LoginPageState extends State<LoginPage> {
 
     try {
       final response = await http.post(
-        Uri.parse('http://172.16.11.249:8000/auth/login'),
+        Uri.parse('http://192.168.35.189:8000/auth/login'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'login_id': loginId, 'password': password}),
       );

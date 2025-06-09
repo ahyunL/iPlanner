@@ -30,7 +30,7 @@ class _PasswordCheckPageState extends State<PasswordCheckPage> {
       }
 
       final response = await http.post(
-        Uri.parse('http://172.16.11.249:8000/user/verify-password'),
+        Uri.parse('http://192.168.35.189:8000/user/verify-password'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $accessToken',
@@ -75,7 +75,7 @@ class _PasswordCheckPageState extends State<PasswordCheckPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
+      backgroundColor: const Color(0xFFF9F9F9),
       appBar: AppBar(
         title: const Text('회원정보 수정', style: TextStyle(color: Colors.black)),
         backgroundColor: Colors.white,

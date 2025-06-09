@@ -10,4 +10,5 @@ class Timer(Base):
     study_date = Column(Date, nullable=False)
     total_minutes = Column(Integer, default=0)
 
+
     user = relationship("User", back_populates="timers")

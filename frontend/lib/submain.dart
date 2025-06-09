@@ -161,7 +161,7 @@ class _SubMainPageState extends State<SubMainPage> {
 
   try {
     final response = await http.post(
-      Uri.parse('http://172.16.11.249:8000/plan/schedule'),
+      Uri.parse('http://192.168.35.189:8000/plan/schedule'),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token'

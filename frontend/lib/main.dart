@@ -13,13 +13,12 @@ import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:provider/provider.dart';  // 🔧 꼭 추가!
 import 'todo_provider.dart'; // TodoProvider 정의한 파일
-import 'studyplan.dart';
 import 'mypage.dart'; 
 import 'timer.dart'; 
 import 'timer_provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 void main() {
   runApp(
     // 변경 후
@@ -38,6 +37,7 @@ class StudyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
       initialRoute: '/',
       routes: {
@@ -177,10 +177,10 @@ class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
   @override
-  State<HomePage> createState() => _HomePageState();
+  State<HomePage> createState() => HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class HomePageState extends State<HomePage> {
   List<Map<String, dynamic>> todayTodos = [];
   Map<String, List<Map<String, dynamic>>> weeklyTodos = {};
   Map<String, List<bool>> todoChecked = {};
@@ -193,12 +193,32 @@ class _HomePageState extends State<HomePage> {
   int weeklyMinutes = 0;
   Map<String, int> userStudyTime = {};
 
-  final String baseUrl = 'http://172.16.11.249:8000';
+  final String baseUrl = 'http://192.168.35.189:8000';
+
+   Future<void> refreshTodayStudyTime() async {
+    final prefs = await SharedPreferences.getInstance();
+    final accessToken = prefs.getString('accessToken');
+    if (accessToken == null) return;
+
+    final response = await http.get(
+      Uri.parse('http://192.168.35.189:8000/timer/today'),
+      headers: {
+        'Authorization': 'Bearer $accessToken',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      setState(() {
+        todayMinutes = data['today_minutes']; // ✅ 도넛에 쓰이는 값
+      });
+    }
+  }
 
   @override
   void initState() {
     super.initState();
-    Future.microtask(() => fetchAllData()); // ✅ 비동기 안전하게 호출
+     refreshTodayStudyTime(); 
   }
 
   Future<Map<String, String>> _headers() async {
@@ -222,6 +242,7 @@ class _HomePageState extends State<HomePage> {
     await fetchTimers();
     await fetchUserStudyTime();
     await fetchCalendarEvents();
+    await refreshTodayStudyTime();
   }
 
   Future<void> fetchTodayTodos() async {
@@ -271,24 +292,24 @@ class _HomePageState extends State<HomePage> {
     await fetchTodayTodos();
   }
 
-Future<void> toggleComplete(int planId, bool newValue) async {
-  final headers = await _headers();
-  final completeValue = newValue ? 1 : 0;
+  Future<void> toggleComplete(int planId, bool newValue) async {
+    final headers = await _headers();
+    final completeValue = newValue ? 1 : 0;
 
-  final res = await http.patch(
-    Uri.parse('$baseUrl/plan/$planId/complete'),
-    headers: headers,
-    body: json.encode({"complete": completeValue}),
-  );
+    final res = await http.patch(
+      Uri.parse('$baseUrl/plan/$planId/complete'),
+      headers: headers,
+      body: json.encode({"complete": completeValue}),
+    );
 
-  if (res.statusCode == 200) {
-    await fetchCalendarEvents();  // ✅ 상태 업데이트 후 이벤트 재로딩
+    if (res.statusCode == 200) {
+      await fetchCalendarEvents();  // ✅ 상태 업데이트 후 이벤트 재로딩
 
-    setState(() {});              // ✅ 화면 새로고침 (팝업 리스트 다시 그림)
-  } else {
-    print('❌ complete 변경 실패: ${res.statusCode}');
-  }
-}
+      setState(() {});              // ✅ 화면 새로고침 (팝업 리스트 다시 그림)
+    } else {
+      print('❌ complete 변경 실패: ${res.statusCode}');
+    }
+    }
 
   Future<void> fetchTimers() async {
     final headers = await _headers();
@@ -540,32 +561,6 @@ Future<void> toggleComplete(int planId, bool newValue) async {
   }
 
 
-  // // ✅ Todo 타일 위젯
-  // Widget _buildTodoTile(Map<String, dynamic> todo) {
-  //   final isComplete = todo['complete'] == true || todo['complete'] == 1;
-  //   return ListTile(
-  //     leading: Checkbox(
-  //       value: isComplete,
-  //       onChanged: (val) async {
-  //         if (val != null) {
-  //           await toggleComplete(todo['plan_id'], val);
-  //           await fetchTodayTodos();
-  //           await fetchWeeklyTodos();
-  //           await fetchCalendarEvents();
-  //           setState(() {});
-  //         }
-  //       },
-  //     ),
-  //     title: Text(
-  //       todo['plan_name'] ?? '무제',
-  //       style: TextStyle(
-  //         decoration: isComplete ? TextDecoration.lineThrough : null,
-  //         color: isComplete ? Colors.grey : null,
-  //       ),
-  //     ),
-  //   );
-  // }
-
   Widget _buildStyledTodoTile(Map<String, dynamic> todo) {
     final isComplete = todo['complete'] == true || todo['complete'] == 1;
     return Container(
@@ -608,168 +603,102 @@ Future<void> toggleComplete(int planId, bool newValue) async {
     );
   }
 
+  
 
-
-
-  // // ✅ Todo 및 도넛 카드 섹션 (오늘 할 일, 주간 할 일, 학습 통계 카드 포함)
-  // Widget _buildTodoAndWeeklySection() {
-  //   return Row(
-  //     crossAxisAlignment: CrossAxisAlignment.start,
-  //     children: [
-  //       // 왼쪽: 할 일 카드들
-  //       Expanded(
-  //         flex: 3,
-  //         child: Column(
-  //           children: [
-  //             // ✅ 오늘 할 일도 전체 카드로 감싸기
-  //             _buildTodoCard(
-  //               title: "", // 타이틀은 ExpansionTile 내부에 있으므로 비움
-  //               child: ExpansionTile(
-  //                 tilePadding: const EdgeInsets.symmetric(horizontal: 8),
-  //                 title: Text(
-  //                   "오늘 할 일",
-  //                   style: GoogleFonts.notoSansKr(
-  //                     fontSize: 18,
-  //                     fontWeight: FontWeight.w600,
-  //                     letterSpacing: 0.5,
-  //                     color: const Color(0xFF263238),
-  //                   ),
-  //                 ),
-  //                 initiallyExpanded: true,
-  //                 children: [
-  //                   todayTodos.isEmpty
-  //                       ? const Padding(
-  //                           padding: EdgeInsets.symmetric(vertical: 8),
-  //                           child: Text(
-  //                             "오늘은 계획된 Todo가 없습니다!",
-  //                             style: TextStyle(fontSize: 14),
-  //                           ),
-  //                         )
-  //                       : Column(
-  //                           children: todayTodos.map((todo) => _buildStyledTodoTile(todo)).toList(),
-  //                         ),
-  //                 ],
-  //               ),
-  //             ),
-  //             const SizedBox(height: 20),
-  //             _buildTodoCard(
-  //               title: "주간 할 일",
-  //               child: Column(
-  //                 children: weeklyTodos.entries.map(
-  //                   (entry) => ExpansionTile(
-  //                     tilePadding: const EdgeInsets.symmetric(horizontal: 8),
-  //                     title: Text(entry.key, style: const TextStyle(fontWeight: FontWeight.bold)),
-  //                     children: entry.value.map((todo) => _buildStyledTodoTile(todo)).toList(),
-  //                   ),
-  //                 ).toList(),
-  //               ),
-  //             ),
-  //           ],
-  //         ),
-  //       ),
-  //       const SizedBox(width: 16),
-  //       // 오른쪽: 도넛 카드
-  //       Expanded(
-  //         flex: 2,
-  //         child: _buildTodoCard(
-  //           title: "학습 통계",
-  //           child: GridView.count(
-  //             shrinkWrap: true,
-  //             physics: const NeverScrollableScrollPhysics(),
-  //             crossAxisCount: 2,
-  //             crossAxisSpacing: 12,
-  //             mainAxisSpacing: 12,
-  //             childAspectRatio: 1,
-  //             children: [
-  //               _buildDonutCard("오늘 공부 달성률", _calculateTodayPercent(),
-  //                   (_calculateTodayPercent() * 100).toStringAsFixed(1) + "%"),
-  //               _buildDonutCard("오늘 공부 시간", _calculateTodayPercent(), _minutesToHourMin(todayMinutes)),
-  //               _buildDonutCard("주간 목표 달성률", _calculateWeeklyPercent(),
-  //                   (_calculateWeeklyPercent() * 100).toStringAsFixed(1) + "%"),
-  //               _buildDonutCard("이번주 공부 시간", _calculateWeeklyPercent(), _minutesToHourMin(weeklyMinutes)),
-  //             ],
-  //           ),
-  //         ),
-  //       ),
-  //     ],
-  //   );
-  // }
-
-  Widget _buildTodoAndWeeklySection() {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // 왼쪽: 할 일 카드들
-        Expanded(
-          flex: 3,
-          child: Column(
-            children: [
-              _buildTodoCard(
-                title: "오늘 할 일",
-                child: ExpansionTile(
-                  title: Text(
-                    "",
-                    style: GoogleFonts.notoSansKr(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0.5,
-                      color: const Color(0xFF263238),
-                    ),
+Widget _buildTodoAndWeeklySection() {
+  return Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      // 왼쪽: 할 일 카드들
+      Expanded(
+        flex: 3,
+        child: Column(
+          children: [
+            _buildTodoCard(
+              title: "오늘 할 일",
+              child: ExpansionTile(
+                title: Text(
+                  "",
+                  style: GoogleFonts.notoSansKr(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.5,
+                    color: const Color(0xFF263238),
                   ),
-                  initiallyExpanded: true,
-                  tilePadding: const EdgeInsets.symmetric(horizontal: 8),
-                  children: [
-                    todayTodos.isEmpty
-                        ? const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 12),
-                            child: Text("오늘은 계획된 Todo가 없습니다!", style: TextStyle(fontSize: 14)),
-                          )
-                        : Column(
-                            children: todayTodos.map((todo) => _buildStyledTodoTile(todo)).toList(),
-                          ),
-                  ],
                 ),
+                initiallyExpanded: true,
+                tilePadding: const EdgeInsets.symmetric(horizontal: 8),
+                children: [
+                  todayTodos.isEmpty
+                      ? const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 12),
+                          child: Text("오늘은 계획된 Todo가 없습니다!", style: TextStyle(fontSize: 14)),
+                        )
+                      : Column(
+                          children: todayTodos.map((todo) => _buildStyledTodoTile(todo)).toList(),
+                        ),
+                ],
               ),
-              const SizedBox(height: 20),
-              _buildTodoCard(
-                title: "주간 할 일",
-                child: Column(
-                  children: weeklyTodos.entries.map(
-                    (entry) => ExpansionTile(
-                      title: Text(entry.key, style: const TextStyle(fontWeight: FontWeight.bold)),
-                      children: entry.value.map((todo) => _buildStyledTodoTile(todo)).toList(),
-                    ),
-                  ).toList(),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 16),
-        // 오른쪽: 도넛 카드
-        Expanded(
-          flex: 2,
-          child: _buildTodoCard(
-            title: "학습 통계",
-            child: GridView.count(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: 2,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: 1,
-              children: [
-                _buildDonutCard("오늘 공부 달성률", _calculateTodayPercent(), "${(_calculateTodayPercent() * 100).toStringAsFixed(1)}%"),
-                _buildDonutCard("오늘 공부 시간", _calculateTodayPercent(), _minutesToHourMin(todayMinutes)),
-                _buildDonutCard("주간 목표 달성률", _calculateWeeklyPercent(), "${(_calculateWeeklyPercent() * 100).toStringAsFixed(1)}%"),
-                _buildDonutCard("이번주 공부 시간", _calculateWeeklyPercent(), _minutesToHourMin(weeklyMinutes)),
-              ],
             ),
-          ),
+            const SizedBox(height: 20),
+            _buildTodoCard(
+              title: "주간 할 일",
+              child: Column(
+                children: weeklyTodos.entries.map(
+                  (entry) => ExpansionTile(
+                    title: Text(entry.key, style: const TextStyle(fontWeight: FontWeight.bold)),
+                    children: entry.value.map((todo) => _buildStyledTodoTile(todo)).toList(),
+                  ),
+                ).toList(),
+              ),
+            ),
+          ],
         ),
-      ],
-    );
-  }
+      ),
+      const SizedBox(width: 16),
+
+      // 오른쪽: 학습 통계 도넛 카드 (Consumer로 연동)
+      Expanded(
+        flex: 2,
+        child: Consumer<TimerProvider>(
+          builder: (context, timer, _) {
+            final today = ['월', '화', '수', '목', '금', '토', '일'][DateTime.now().weekday - 1];
+            final todayStudyMin = timer.weeklyStudy[today]?.inMinutes ?? 0;
+            final weeklyStudyMin = timer.weeklyStudy.values
+                .fold<int>(0, (sum, d) => sum + d.inMinutes);
+
+            double calculatePercent(int value, int goal) =>
+                (value / goal).clamp(0.0, 1.0);
+
+            String formatMinutes(int minutes) {
+              final h = (minutes ~/ 60).toString();
+              final m = (minutes % 60).toString().padLeft(2, '0');
+              return '${h}H${m}M';
+            }
+
+            return _buildTodoCard(
+              title: "학습 통계",
+              child: GridView.count(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisCount: 2,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                childAspectRatio: 1,
+                children: [
+                  _buildDonutCard("오늘 공부 달성률", calculatePercent(todayStudyMin, 240), "${(calculatePercent(todayStudyMin, 240) * 100).toStringAsFixed(1)}%"),
+                  _buildDonutCard("오늘 공부 시간", calculatePercent(todayStudyMin, 240), formatMinutes(todayStudyMin)),
+                  _buildDonutCard("주간 목표 달성률", calculatePercent(weeklyStudyMin, 1680), "${(calculatePercent(weeklyStudyMin, 1680) * 100).toStringAsFixed(1)}%"),
+                  _buildDonutCard("이번주 공부 시간", calculatePercent(weeklyStudyMin, 1680), formatMinutes(weeklyStudyMin)),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    ],
+  );
+}
 
 
 
@@ -840,69 +769,6 @@ Future<void> toggleComplete(int planId, bool newValue) async {
       return planDate.year == day.year && planDate.month == day.month && planDate.day == day.day;
     }).toList();
   }
-
-
-
-  // Widget _buildCalendarDay(DateTime day, {bool isToday = false}) {
-  //   final dateKey = DateTime.utc(day.year, day.month, day.day);
-  //   final events = _events[dateKey] ?? [];
-  //   final isSelected = isSameDay(_selectedDay, day);
-  //   final hasEvent = events.isNotEmpty;
-
-  //   return GestureDetector(
-  //     onTap: () {
-  //       _showFullTodoPopup(context, day, _eventDataMap[dateKey] ?? []);
-  //     },
-  //     child: SizedBox(
-  //       height: 80, // ✅ 모든 셀의 높이를 고정
-  //       child: Column(
-  //         mainAxisSize: MainAxisSize.min,
-  //         children: [
-  //           // 날짜 원
-  //           Container(
-  //             width: 32,
-  //             height: 32,
-  //             alignment: Alignment.center,
-  //             decoration: BoxDecoration(
-  //               color: isSelected ? const Color(0xFF004377) : null,
-  //               borderRadius: BorderRadius.circular(16),
-  //               border: isSelected
-  //                   ? Border.all(color: const Color(0xFF004377), width: 1.5)
-  //                   : null, // ✅ isSelected인 경우만 border 적용
-  //             ),
-  //             child: Text(
-  //               '${day.day}',
-  //               style: TextStyle(
-  //                 color: isSelected ? Colors.white : Colors.black,
-  //                 fontWeight: FontWeight.w500,
-  //               ),
-  //             ),
-  //           ),
-
-  //           const SizedBox(height: 4),
-
-  //           // 일정 요약 (일정이 있을 경우만 표시)
-  //           if (hasEvent)
-  //             Text(
-  //               events.first.length > 10
-  //                   ? '${events.first.substring(0, 9)}…'
-  //                   : events.first,
-  //               style: const TextStyle(fontSize: 10),
-  //               overflow: TextOverflow.ellipsis,
-  //               maxLines: 1,
-  //             ),
-  //           if (events.length > 1)
-  //             Text(
-  //               '+${events.length - 1}개 더보기',
-  //               style: const TextStyle(fontSize: 10, color: Colors.grey),
-  //               overflow: TextOverflow.ellipsis,
-  //               maxLines: 1,
-  //             ),
-  //         ],
-  //       ),
-  //     ),
-  //   );
-  // }
 
 
   Widget _buildCalendarDay(DateTime day, {bool isToday = false}) {

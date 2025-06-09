@@ -8,7 +8,7 @@ import 'dart:io';  // ✅ File 객체 사용 (모바일에서만 필요)
 
 
 Map<int, List<Stroke>> pageStrokes = {};  // 썸네일 테스트용
-const String baseUrl = 'http://172.16.11.249:8000'; // 또는 실제 서버 주소
+const String baseUrl = 'http://192.168.35.189:8000'; // 또는 실제 서버 주소
 
 
 //pdf 업로드 기능 때문에 모바일로만 실행 가능.
@@ -63,7 +63,7 @@ class _NoteListPageState extends State<NoteListPage> {
 
     try {
       final response = await http.get(
-        Uri.parse('http://172.16.11.249:8000/pdf/notes/${widget.folderId}'),
+        Uri.parse('http://192.168.35.189:8000/pdf/notes/${widget.folderId}'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $accessToken',
@@ -119,7 +119,7 @@ class _NoteListPageState extends State<NoteListPage> {
 
     try {
       final response = await http.post(
-        Uri.parse('http://172.16.11.249:8000/pdf/notes'),
+        Uri.parse('http://192.168.35.189:8000/pdf/notes'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $accessToken',
@@ -158,7 +158,7 @@ class _NoteListPageState extends State<NoteListPage> {
 
   Drawer _buildDrawer() {
     return Drawer(
-      backgroundColor: const Color(0xFFF5F5F5),
+      backgroundColor: const Color(0xFFFBFCF7),
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -362,7 +362,7 @@ class _NoteListPageState extends State<NoteListPage> {
       final fileName = pickedFile.name;
 
       final accessToken = await getAccessToken();
-      final uri = Uri.parse('http://172.16.11.249:8000/pdf/upload');
+      final uri = Uri.parse('http://192.168.35.189:8000/pdf/upload');
 
       final request = http.MultipartRequest('POST', uri)
         ..headers['Authorization'] = 'Bearer $accessToken'
@@ -434,7 +434,7 @@ class _NoteListPageState extends State<NoteListPage> {
 
   //   try {
   //     final response = await http.get(
-  //       Uri.parse('http://172.16.11.249:8000/pdf/pages/$pdfId'),
+  //       Uri.parse('http://192.168.35.189:8000/pdf/pages/$pdfId'),
   //       headers: {
   //         'Authorization': 'Bearer $accessToken',
   //       },
@@ -442,7 +442,7 @@ class _NoteListPageState extends State<NoteListPage> {
   //     if (response.statusCode == 200) {
   //       final pages = jsonDecode(utf8.decode(response.bodyBytes));
   //       if (pages.isNotEmpty && pages[0]['image_preview_url'] != null) {
-  //         return 'http://172.16.11.249:8000${pages[0]['image_preview_url']}';
+  //         return 'http://192.168.35.189:8000${pages[0]['image_preview_url']}';
   //       }
   //     }
   //   } catch (e) {
@@ -481,7 +481,7 @@ class _NoteItemCardState extends State<NoteItemCard> {
     try {
       // 썸네일 먼저 시도
       final response = await http.get(
-        Uri.parse('http://172.16.11.249:8000/pdf/pages/${widget.note.id}'),
+        Uri.parse('http://192.168.35.189:8000/pdf/pages/${widget.note.id}'),
         headers: {
           'Authorization': 'Bearer $accessToken',
         },
@@ -494,7 +494,7 @@ class _NoteItemCardState extends State<NoteItemCard> {
           final imageUrl = firstPage['image_preview_url'];
           setState(() {
             if (imageUrl != null) {
-              thumbnailUrl = 'http://172.16.11.249:8000$imageUrl';
+              thumbnailUrl = 'http://192.168.35.189:8000$imageUrl';
             } else {
               firstPageId = firstPage['page_id'];
             }
@@ -628,7 +628,7 @@ class _NoteItemCardState extends State<NoteItemCard> {
     final token = prefs.getString('accessToken');
 
     final response = await http.get(
-      Uri.parse('http://172.16.11.249:8000/pdf/folders'),
+      Uri.parse('http://192.168.35.189:8000/pdf/folders'),
       headers: {'Authorization': 'Bearer $token'},
     );
 
@@ -680,7 +680,7 @@ class _NoteItemCardState extends State<NoteItemCard> {
     final token = prefs.getString('accessToken');
 
     final response = await http.patch(
-      Uri.parse('http://172.16.11.249:8000/pdf/notes/$noteId'),
+      Uri.parse('http://192.168.35.189:8000/pdf/notes/$noteId'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',

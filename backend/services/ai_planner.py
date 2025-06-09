@@ -61,7 +61,7 @@ def save_row_plans_to_db(user_data: dict):
     db = pymysql.connect(
         host='localhost',
         user='root',
-        password='1204',
+        password='ssdbwlsdl12!',
         database='yuminsu',
         charset='utf8mb4',
         cursorclass=pymysql.cursors.DictCursor
@@ -92,7 +92,7 @@ def generate_and_save_plans(user_id: int, subject_id: int):
     db = pymysql.connect(
         host='localhost',
         user='root',
-        password='1204',
+        password='ssdbwlsdl12!',
         database='yuminsu',
         charset='utf8mb4',
         cursorclass=pymysql.cursors.DictCursor
@@ -147,7 +147,7 @@ def create_plan_list_for_response(user_id: int, subject_id: int):
     db = pymysql.connect(
         host='localhost',
         user='root',
-        password='1204',
+        password='ssdbwlsdl12!',
         database='yuminsu',
         charset='utf8mb4',
         cursorclass=pymysql.cursors.DictCursor

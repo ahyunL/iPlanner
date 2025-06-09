@@ -25,7 +25,7 @@ class TodoProvider with ChangeNotifier {
       }
     }
 
-    final url = Uri.parse("http://172.16.11.249:8000/plan/weekly-grouped");
+    final url = Uri.parse("http://192.168.35.189:8000/plan/weekly-grouped");
     final response = await http.get(
       url,
       headers: {
@@ -77,7 +77,7 @@ class TodoProvider with ChangeNotifier {
   //       final planId = planIdMap[subject]?[index];
 
   //       if (token != null && planId != null) {
-  //         final url = Uri.parse("http://172.16.11.249:8000/plan/$planId/complete");
+  //         final url = Uri.parse("http://192.168.35.189:8000/plan/$planId/complete");
   //         final response = await http.patch(
   //           url,
   //           headers: {
@@ -102,7 +102,7 @@ class TodoProvider with ChangeNotifier {
       final planId = planIdMap[subject]?[index];
 
       if (token != null && planId != null) {
-        final url = Uri.parse("http://172.16.11.249:8000/plan/$planId/complete");
+        final url = Uri.parse("http://192.168.35.189:8000/plan/$planId/complete");
         final response = await http.patch(
           url,
           headers: {

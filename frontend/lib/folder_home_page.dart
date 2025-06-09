@@ -8,7 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 class FolderHomePage extends StatefulWidget {
   const FolderHomePage({super.key});
 
-  static const background = Color(0xFFFFFFFF);
+  static const background = Color(0xFFFBFCF7);
   static const cobaltBlue = Color(0xFF004377);
 
   @override
@@ -45,7 +45,7 @@ class _FolderHomePageState extends State<FolderHomePage> {
 
     try {
       final response = await http.get(
-        Uri.parse('http://172.16.11.249:8000/pdf/folders'),
+        Uri.parse('http://192.168.35.189:8000/pdf/folders'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $accessToken',
@@ -80,7 +80,7 @@ class _FolderHomePageState extends State<FolderHomePage> {
 
     try {
       final response = await http.post(
-        Uri.parse('http://172.16.11.249:8000/pdf/folders'),
+        Uri.parse('http://192.168.35.189:8000/pdf/folders'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $accessToken',
@@ -109,7 +109,7 @@ class _FolderHomePageState extends State<FolderHomePage> {
 
     try {
       final response = await http.patch(
-        Uri.parse('http://172.16.11.249:8000/pdf/folders/$folderId'),
+        Uri.parse('http://192.168.35.189:8000/pdf/folders/$folderId'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $accessToken',
@@ -133,7 +133,7 @@ class _FolderHomePageState extends State<FolderHomePage> {
 
     try {
       final response = await http.delete(
-        Uri.parse('http://172.16.11.249:8000/pdf/folders/$folderId'),
+        Uri.parse('http://192.168.35.189:8000/pdf/folders/$folderId'),
         headers: {'Authorization': 'Bearer $accessToken'},
       );
 
