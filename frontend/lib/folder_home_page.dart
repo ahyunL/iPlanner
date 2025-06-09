@@ -1,4 +1,4 @@
-// 📄 folder_home_page.dart - AccessToken 적용 & 리팩토링 버전
+// folder_home_page.dart - AccessToken 적용 & 리팩토링 버전
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -8,7 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 class FolderHomePage extends StatefulWidget {
   const FolderHomePage({super.key});
 
-  static const background = Color(0xFFFBFCF7);
+  static const background = Color(0xFFFFFFFF);
   static const cobaltBlue = Color(0xFF004377);
 
   @override
@@ -45,7 +45,7 @@ class _FolderHomePageState extends State<FolderHomePage> {
 
     try {
       final response = await http.get(
-        Uri.parse('http://192.168.35.189:8000/pdf/folders'),
+        Uri.parse('http://localhost:8000/pdf/folders'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $accessToken',
@@ -66,10 +66,10 @@ class _FolderHomePageState extends State<FolderHomePage> {
           isEditing = List.filled(folders.length, false);
         });
       } else {
-        debugPrint('❌ 폴더 목록 요청 실패: ${response.body}');
+        debugPrint('폴더 목록 요청 실패: ${response.body}');
       }
     } catch (e) {
-      debugPrint('❌ 폴더 목록 요청 예외: $e');
+      debugPrint('폴더 목록 요청 예외: $e');
     }
   }
 
@@ -80,7 +80,7 @@ class _FolderHomePageState extends State<FolderHomePage> {
 
     try {
       final response = await http.post(
-        Uri.parse('http://192.168.35.189:8000/pdf/folders'),
+        Uri.parse('http://localhost:8000/pdf/folders'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $accessToken',
@@ -96,10 +96,10 @@ class _FolderHomePageState extends State<FolderHomePage> {
           });
         });
       } else {
-        debugPrint('❌ 폴더 생성 실패: ${response.body}');
+        debugPrint('폴더 생성 실패: ${response.body}');
       }
     } catch (e) {
-      debugPrint('❌ 폴더 생성 예외: $e');
+      debugPrint('폴더 생성 예외: $e');
     }
   }
 
@@ -109,7 +109,7 @@ class _FolderHomePageState extends State<FolderHomePage> {
 
     try {
       final response = await http.patch(
-        Uri.parse('http://192.168.35.189:8000/pdf/folders/$folderId'),
+        Uri.parse('http://localhost:8000/pdf/folders/$folderId'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $accessToken',
@@ -120,10 +120,10 @@ class _FolderHomePageState extends State<FolderHomePage> {
       if (response.statusCode == 200) {
         await _fetchFolders();
       } else {
-        debugPrint('❌ 이름 변경 실패: ${response.body}');
+        debugPrint('이름 변경 실패: ${response.body}');
       }
     } catch (e) {
-      debugPrint('❌ 이름 변경 예외: $e');
+      debugPrint('이름 변경 예외: $e');
     }
   }
 
@@ -133,17 +133,17 @@ class _FolderHomePageState extends State<FolderHomePage> {
 
     try {
       final response = await http.delete(
-        Uri.parse('http://192.168.35.189:8000/pdf/folders/$folderId'),
+        Uri.parse('http://localhost:8000/pdf/folders/$folderId'),
         headers: {'Authorization': 'Bearer $accessToken'},
       );
 
       if (response.statusCode == 200) {
         await _fetchFolders();
       } else {
-        debugPrint('❌ 삭제 실패: ${response.body}');
+        debugPrint('삭제 실패: ${response.body}');
       }
     } catch (e) {
-      debugPrint('❌ 삭제 예외: $e');
+      debugPrint('삭제 예외: $e');
     }
   }
 
@@ -202,7 +202,7 @@ class _FolderHomePageState extends State<FolderHomePage> {
                 title: const Text('불러오기'),
                 onTap: () {
                   Navigator.pop(context);
-                  debugPrint('📂 파일 불러오기 기능은 아직 구현되지 않았습니다.');
+                  debugPrint('파일 불러오기 기능은 아직 구현되지 않았습니다.');
                 },
               ),
             ],

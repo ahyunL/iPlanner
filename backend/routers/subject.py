@@ -11,7 +11,7 @@ from datetime import datetime
 
 router = APIRouter()
 
-# ✅ 과목 등록용 Pydantic 스키마
+# 과목 등록용 Pydantic 스키마
 class SubjectCreate(BaseModel):
     field: str
     test_name: str
@@ -19,7 +19,7 @@ class SubjectCreate(BaseModel):
     start_date: datetime
     end_date: datetime
 
-# ✅ 과목 전체 리스트 조회
+# 과목 전체 리스트 조회
 @router.get("/subject/list")
 def list_subjects(request: Request, db: Session = Depends(get_db)):
     auth_header = request.headers.get("Authorization")
@@ -31,7 +31,7 @@ def list_subjects(request: Request, db: Session = Depends(get_db)):
 
     subjects = db.query(Subject).filter(Subject.user_id == user_id).all()
     return subjects
-# ✅ 전체 과목 리스트 반환 (로그인한 사용자 기준)
+# 전체 과목 리스트 반환 (로그인한 사용자 기준)
 @router.get("/list")
 def get_subject_list(request: Request, db: Session = Depends(get_db)):
     auth_header = request.headers.get("Authorization")
@@ -54,7 +54,7 @@ def get_subject_list(request: Request, db: Session = Depends(get_db)):
         for s in subjects
     ]
 
-# ✅ 과목 등록
+# 과목 등록
 @router.post("/")
 def create_subject(request: Request, subject: SubjectCreate, db: Session = Depends(get_db)):
     try:
@@ -80,10 +80,10 @@ def create_subject(request: Request, subject: SubjectCreate, db: Session = Depen
         return {"subject_id": new_subject.subject_id}
 
     except Exception as e:
-        print("❌ subject 저장 중 오류 발생:", e)  # ⭐ 이거 중요!
+        print("subject 저장 중 오류 발생:", e) 
         raise HTTPException(status_code=500, detail=f"Subject 저장 실패: {str(e)}")
 
-# ✅ 전체 학습 데이터 삭제
+# 전체 학습 데이터 삭제
 @router.delete("/subject/delete-all")
 def delete_all_study_data(request: Request, db: Session = Depends(get_db)):
     auth_header = request.headers.get("Authorization")

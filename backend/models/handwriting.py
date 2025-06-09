@@ -2,8 +2,8 @@
 
 from sqlalchemy import Column, Integer, Float, String, ForeignKey
 from sqlalchemy.orm import relationship
-from db import Base  # Base 임포트
-from models.pdf_folder import Folder  # 올바른 임포트 경로
+from db import Base 
+from models.pdf_folder import Folder 
 from sqlalchemy import Column, Integer, Float, String, ForeignKey, BigInteger
 
 class Handwriting(Base):

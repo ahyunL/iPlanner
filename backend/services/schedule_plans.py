@@ -12,7 +12,7 @@ from models.plan import Plan
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-# ✅ GPT 호출 함수
+# GPT 호출 함수
 def get_plan_schedule_from_gpt(data: dict) -> list:
     system_prompt = (    "당신은 학습 계획을 날짜별로 배정해주는 스케줄링 도우미입니다.\n"
         "아래 데이터를 기반으로 각 계획(plan)에 적절한 날짜(plan_date)를 배정해주세요.\n\n"
@@ -51,13 +51,19 @@ def get_plan_schedule_from_gpt(data: dict) -> list:
     )
 
     result = response.choices[0].message.content.strip()
+
+
+    #디버깅용 
+    plan_list = data.get("plans", [])
+    print("GPT에 전달된 plan_list >>>", json.dumps(plan_list, ensure_ascii=False, indent=2))
+    print("GPT 응답 원문 >>>", result)
     try:
         return json.loads(result)
     except Exception as e:
         print("\u274c GPT 응답 파싱 실패:", result)
         return []
 
-# ✅ 사용자, 과목, 계획 가져오기
+# 사용자, 과목, 계획 가져오기
 def fetch_user_data(db, user_id):
     user = db.query(User).filter(User.user_id == user_id).first()
     if not user:
@@ -77,7 +83,7 @@ def fetch_user_data(db, user_id):
 
     return user, subjects, filtered_plans
 
-# ✅ 지난 날짜 계획 초기화
+# 지난 날짜 계획 초기화
 def reset_old_plan_dates(db, user_id):
     today = date.today()
     db.query(Plan).filter(
@@ -87,7 +93,7 @@ def reset_old_plan_dates(db, user_id):
     ).update({"plan_date": None})
     db.commit()
 
-# ✅ 날짜 → 요일 맵 생성
+# 날짜 → 요일 맵 생성
 def get_date_weekday_map(start_date: str, end_date: str) -> dict:
     date_map = {}
     start = datetime.strptime(start_date, "%Y-%m-%d")
@@ -99,7 +105,7 @@ def get_date_weekday_map(start_date: str, end_date: str) -> dict:
         current += timedelta(days=1)
     return date_map
 
-# ✅ GPT 입력용 데이터 구성
+# GPT 입력용 데이터 구성
 def build_prompt_data(user, subjects, plans):
     days = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
 
@@ -144,7 +150,7 @@ def build_prompt_data(user, subjects, plans):
         "study_calendar": study_calendar
     }
 
-# ✅ GPT 결과 반영
+# GPT 결과 반영
 def apply_plan_dates(db, plan_dates):
     updated = 0
     for plan in plan_dates:
@@ -158,7 +164,7 @@ def apply_plan_dates(db, plan_dates):
     db.commit()
     return updated
 
-# ✅ FastAPI에서 호출할 수 있도록 하는 진입점 함수
+# FastAPI에서 호출할 수 있도록 하는 진입점 함수
 def run_schedule_for_user(user_id: int, db):
     try:
         user, subjects, plans = fetch_user_data(db, user_id)

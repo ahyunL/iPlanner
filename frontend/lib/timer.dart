@@ -7,33 +7,39 @@ class TimerPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final timerProvider = Provider.of<TimerProvider>(context);
-
     return Scaffold(
       appBar: AppBar(title: const Text('타이머')),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(
-              timerProvider.formattedTime,
-              style: const TextStyle(
-                fontSize: 60,
-                fontWeight: FontWeight.bold,
-              ),
+            Consumer<TimerProvider>(
+              builder: (context, timerProvider, _) {
+                return Text(
+                  timerProvider.formattedTime,
+                  style: const TextStyle(
+                    fontSize: 60,
+                    fontWeight: FontWeight.bold,
+                  ),
+                );
+              },
             ),
             const SizedBox(height: 40),
-            IconButton(
-              icon: Icon(
-                timerProvider.isRunning ? Icons.pause : Icons.play_arrow,
-                size: 48,
-              ),
-              onPressed: () {
-                if (timerProvider.isRunning) {
-                  timerProvider.pause();
-                } else {
-                  timerProvider.start();
-                }
+            Consumer<TimerProvider>(
+              builder: (context, timerProvider, _) {
+                return IconButton(
+                  icon: Icon(
+                    timerProvider.isRunning ? Icons.pause : Icons.play_arrow,
+                    size: 48,
+                  ),
+                  onPressed: () {
+                    if (timerProvider.isRunning) {
+                      timerProvider.pause();
+                    } else {
+                      timerProvider.start();
+                    }
+                  },
+                );
               },
             ),
           ],

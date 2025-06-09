@@ -4,19 +4,19 @@ from pydantic import BaseModel
 from typing import Optional
 from datetime import date
 
-# ✅ 회원가입 요청에 사용되는 데이터 구조
+# 회원가입 요청에 사용되는 데이터 구조
 class UserCreate(BaseModel):
     login_id: str            # 로그인 ID (필수)
     password: str            # 비밀번호 (필수, 서버에서 해싱)
     birthday: Optional[date] # 생일 (선택)
     phone: Optional[str]     # 전화번호 (선택)
 
-# ✅ 로그인 요청에 사용되는 데이터 구조
+# 로그인 요청에 사용되는 데이터 구조
 class UserLogin(BaseModel):
     login_id: str
     password: str
 
-# ✅ 회원가입 후 응답 시 반환되는 유저 정보
+# 회원가입 후 응답 시 반환되는 유저 정보
 class UserOut(BaseModel):
     user_id: int
     login_id: str
@@ -26,7 +26,7 @@ class UserOut(BaseModel):
         from_attributes = True
 
 
-# ✅ 서브 프로필: 이름, 이메일
+# 서브 프로필: 이름, 이메일
 class UserSubProfile(BaseModel):
     name: Optional[str]
     email: Optional[str]
@@ -34,7 +34,7 @@ class UserSubProfile(BaseModel):
     class Config:
         from_attributes = True
 
-# ✅ 마이페이지 전체 조회용: 기본 정보 + 서브 프로필 포함
+# 마이페이지 전체 조회용: 기본 정보 + 서브 프로필 포함
 class UserProfile(BaseModel):
     login_id: str
     birthday: Optional[date]
@@ -53,11 +53,11 @@ class UserProfile(BaseModel):
     class Config:
         from_attributes = True
 
-# ✅ 비밀번호 확인용 스키마
+# 비밀번호 확인용 스키마
 class PasswordCheck(BaseModel):
     password: str
 
-# ✅ 사용자 기본정보 수정용
+# 사용자 기본정보 수정용
 class UserUpdate(BaseModel):
     birthday: Optional[date]=None
     phone: Optional[str]
@@ -69,17 +69,12 @@ class UserUpdate(BaseModel):
     study_time_sat: Optional[int]
     study_time_sun: Optional[int]
 
-# ✅ 이름, 이메일 수정용 서브 스키마
+# 이름, 이메일 수정용 서브 스키마
 class UserSubProfileUpdate(BaseModel):
     name: Optional[str]
     email: Optional[str]
 
-# # ✅ 비밀번호 수정용 스키마
-# class PasswordUpdate(BaseModel):
-#     current_password: str
-#     new_password: str
 
-
-# ✅ 비밀번호 변경용 (현재 비번 없이 새 비번만 받음)
+# 비밀번호 변경용 (현재 비번 없이 새 비번만 받음)
 class NewPasswordUpdate(BaseModel):
     new_password: str

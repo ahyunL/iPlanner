@@ -26,7 +26,7 @@ class _LoginPageState extends State<LoginPage> {
 
     try {
       final response = await http.post(
-        Uri.parse('http://192.168.35.189:8000/auth/login'),
+        Uri.parse('http://localhost:8000/auth/login'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'login_id': loginId, 'password': password}),
       );
@@ -35,10 +35,10 @@ class _LoginPageState extends State<LoginPage> {
         final responseData = jsonDecode(response.body);
         final accessToken = responseData['access_token'];
 
-        // ✅ accessToken 저장
+        // accessToken 저장
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('accessToken', accessToken);
-        print('✅ 저장된 accessToken: $accessToken');
+        print('저장된 accessToken: $accessToken');
 
         Navigator.pushReplacementNamed(context, '/home');
       } else {

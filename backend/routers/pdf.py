@@ -1,18 +1,18 @@
-# 🔧 FastAPI & Starlette
+# FastAPI & Starlette
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, Form
 from fastapi.responses import JSONResponse, Response
 from typing import List
 from uuid import uuid4
 
-# 🛠 DB / ORM
+# DB / ORM
 from sqlalchemy.orm import Session
 from db import get_db
 
-# 🔐 인증
+# 인증
 from models.user import User
 from utils.auth import get_current_user_id
 
-# 📦 모델 & 스키마
+# 모델 & 스키마
 from models.pdf_folder import Folder
 from models.pdf_notes import PdfNote
 from models.pdf_pages import PdfPage
@@ -27,11 +27,11 @@ from schemas.pdf_schema import (
 
 from pydantic import BaseModel
 
-# 🖼️ 썸네일 및 PDF 렌더링 유틸
+# 썸네일 및 PDF 렌더링 유틸
 from utils.thumbnail import generate_thumbnail
 from utils.pdf_render import render_pdf_page
 
-# 📂 기타 유틸
+# 기타 유틸
 import os
 import fitz  # PyMuPDF
 
@@ -41,7 +41,7 @@ router = APIRouter(tags=["PDF"])
 
 
 
-# ✅ 1. 폴더 생성
+# 1. 폴더 생성
 @router.post("/folders", response_model=PdfFolderOut)
 def create_pdf_folder(
     folder: PdfFolderCreate,
@@ -49,14 +49,14 @@ def create_pdf_folder(
     db: Session = Depends(get_db)
 ):
     user_id = get_current_user_id(request)
-    new_folder = Folder(name=folder.name, user_id=user_id)  # ✅ 수정
+    new_folder = Folder(name=folder.name, user_id=user_id)
     db.add(new_folder)
     db.commit()
     db.refresh(new_folder)
-    return new_folder  # 👉 FastAPI가 알아서 JSON으로 반환함 (utf-8 처리됨)
+    return new_folder  #  FastAPI가 알아서 JSON으로 반환함 (utf-8 처리됨)
     
 
-# ✅ 2. PDF 노트 생성 (빈 노트용)
+# 2. PDF 노트 생성 (빈 노트용)
 @router.post("/notes", response_model=PdfNoteOut)
 def create_pdf_note(note: PdfNoteCreate, db: Session = Depends(get_db)):
     new_note = PdfNote(
@@ -70,7 +70,7 @@ def create_pdf_note(note: PdfNoteCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_note)
 
-    # ✅ 첫 번째 빈 페이지 자동 생성
+    # 첫 번째 빈 페이지 자동 생성
     first_page = PdfPage(
         pdf_id=new_note.pdf_id,
         page_number=1,
@@ -84,11 +84,11 @@ def create_pdf_note(note: PdfNoteCreate, db: Session = Depends(get_db)):
     return new_note
 
 
-# ✅ 3. 페이지 생성
+# 3. 페이지 생성
 
 @router.post("/pages", status_code=201)
 def create_pdf_page(page: PdfPageCreate, db: Session = Depends(get_db)):
-    # 🔍 PDF 원본 경로 구하기
+    # PDF 원본 경로 구하기
     pdf = db.query(PdfNote).filter(PdfNote.pdf_id == page.pdf_id).first()
     if not pdf:
         raise HTTPException(status_code=404, detail="PDF 노트를 찾을 수 없습니다.")
@@ -98,7 +98,7 @@ def create_pdf_page(page: PdfPageCreate, db: Session = Depends(get_db)):
     image_path = f"static/thumbnails/{image_filename}"
     image_url = f"/static/thumbnails/{image_filename}"
 
-    # ✅ 1. 비율 계산을 위한 PyMuPDF 열기
+    # 1. 비율 계산을 위한 PyMuPDF 열기
     try:
         doc = fitz.open(pdf_path)
         page_obj = doc[page.page_number - 1]
@@ -110,20 +110,20 @@ def create_pdf_page(page: PdfPageCreate, db: Session = Depends(get_db)):
         print(f"PDF 비율 계산 실패: {e}")
         aspect_ratio = None
 
-    # ✅ 2. 썸네일 생성
+    # 2. 썸네일 생성
     try:
         generate_thumbnail(pdf_path, page.page_number, image_path)
     except Exception as e:
         print(f"썸네일 생성 실패: {e}")
         image_url = None
 
-    # ✅ 3. DB에 페이지 저장
+    # 3. DB에 페이지 저장
     new_page = PdfPage(
         pdf_id=page.pdf_id,
         page_number=page.page_number,
         page_order=page.page_order or page.page_number,
         image_preview_url=image_url,
-        aspect_ratio=aspect_ratio,  # ✅ 이제 정의됨
+        aspect_ratio=aspect_ratio, 
     )
     db.add(new_page)
     db.commit()
@@ -132,7 +132,7 @@ def create_pdf_page(page: PdfPageCreate, db: Session = Depends(get_db)):
 
 
 
-# ✅ 4. 필기 저장
+# 4. 필기 저장
 @router.post("/annotations", response_model=PdfAnnotationOut)
 def create_pdf_annotation(annotation: PdfAnnotationCreate, db: Session = Depends(get_db)):
     new_anno = PdfAnnotation(
@@ -146,33 +146,33 @@ def create_pdf_annotation(annotation: PdfAnnotationCreate, db: Session = Depends
     db.refresh(new_anno)
     return new_anno
 
-# ✅ 5. 특정 페이지 필기 불러오기
+# 5. 특정 페이지 필기 불러오기
 @router.get("/annotations/{page_id}", response_model=list[PdfAnnotationOut])
 def get_annotations_by_page(page_id: int, db: Session = Depends(get_db)):
     annotations = db.query(PdfAnnotation).filter(PdfAnnotation.page_id == page_id).all()
     return annotations
 
-# ✅ 6. 특정 폴더의 PDF 목록 조회
+# 6. 특정 폴더의 PDF 목록 조회
 @router.get("/notes/{folder_id}", response_model=list[PdfNoteOut])
 def get_notes_by_folder(folder_id: int, db: Session = Depends(get_db)):
     notes = db.query(PdfNote).filter(PdfNote.folder_id == folder_id).all()
     return notes
 
-# ✅ 7. 특정 PDF의 페이지 목록 조회
+# 7. 특정 PDF의 페이지 목록 조회
 @router.get("/pages/{pdf_id}", response_model=list[PdfPageOut])
 def get_pages_by_pdf(pdf_id: int, db: Session = Depends(get_db)):
     pages = db.query(PdfPage).filter(PdfPage.pdf_id == pdf_id).order_by(PdfPage.page_number).all()
     return pages
 
 
-# ✅ 8. 모든 폴더 목록 조회
+# 8. 모든 폴더 목록 조회
 @router.get("/folders", response_model=List[PdfFolderOut])
 def get_folders(request: Request, db: Session = Depends(get_db)):
-    user_id = get_current_user_id(request)  # ✅ 토큰에서 user_id 추출
+    user_id = get_current_user_id(request)  # 토큰에서 user_id 추출
     folders = db.query(Folder).filter(Folder.user_id == user_id).all()
     return folders
 
-# ✅ 9. 폴더 이름 수정
+# 9. 폴더 이름 수정
 @router.patch("/folders/{folder_id}", response_model=PdfFolderOut)
 def update_folder_name(
     folder_id: int,
@@ -184,13 +184,13 @@ def update_folder_name(
     target = db.query(Folder).filter(Folder.folder_id == folder_id, Folder.user_id == user_id).first()
     if not target:
         raise HTTPException(status_code=404, detail="폴더를 찾을 수 없습니다.")
-    target.name = folder.name  # ✅ 수정
+    target.name = folder.name  
     db.commit()
     db.refresh(target)
     return target
 
 
-# ✅ 10. 폴더 삭제
+# 10. 폴더 삭제
 @router.delete("/folders/{folder_id}", status_code=200)
 def delete_folder(
     folder_id: int,
@@ -218,7 +218,7 @@ def delete_folder(
     db.commit()
     return {"message": "폴더가 삭제되었습니다."}
 
-# ✅ 11. 전체 pdf 노트에 대한 필기 일괄 조회
+# 11. 전체 pdf 노트에 대한 필기 일괄 조회
 @router.get("/annotations/by_pdf/{pdf_id}", response_model=list[PdfAnnotationOut])
 def get_annotations_by_pdf(pdf_id: int, db: Session = Depends(get_db)):
     annotations = (
@@ -230,7 +230,7 @@ def get_annotations_by_pdf(pdf_id: int, db: Session = Depends(get_db)):
     return annotations
 
 
-# ✅ 12. pdf 썸네일 업로드
+# 12. pdf 썸네일 업로드
 @router.post("/thumbnails", response_model=dict)
 def upload_thumbnail(
     page_id: int = Form(...),
@@ -238,7 +238,7 @@ def upload_thumbnail(
     db: Session = Depends(get_db)
 ):
     try:
-        print(f"📩 썸네일 업로드 요청 도착 - page_id: {page_id}, filename: {file.filename}")
+        print(f"썸네일 업로드 요청 도착 - page_id: {page_id}, filename: {file.filename}")
 
         ext = os.path.splitext(file.filename)[1]
         filename = f"thumb_{page_id}_{uuid4().hex[:8]}{ext}"
@@ -247,24 +247,19 @@ def upload_thumbnail(
 
         with open(save_path, "wb") as buffer:
             buffer.write(file.file.read())
-        print(f"📦 썸네일 저장 완료: {save_path}")
-
-        # ✅ 이 줄 제거: image_preview_url 업데이트 X
-        # page.image_preview_url = f"/static/thumbnails/{filename}"
-        # db.commit()
-        # db.refresh(page)
+        print(f"썸네일 저장 완료: {save_path}")
 
         return {"thumbnail_path": f"/static/thumbnails/{filename}"}
 
     except Exception as e:
-        print(f"❌ 썸네일 업로드 중 오류 발생: {e}")
+        print(f"썸네일 업로드 중 오류 발생: {e}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
     
 
 
-# ✅ 13. 필기 삭제
+# 13. 필기 삭제
 @router.delete("/annotations/{page_id}")
 def delete_annotations_by_page(
     page_id: int,
@@ -285,7 +280,7 @@ def delete_annotations_by_page(
     return {"deleted": deleted}
 
 
-# ✅ 14. pdf 업로드
+# 14. pdf 업로드
 @router.post("/upload", response_model=PdfNoteOut)
 def upload_pdf_file(
     title: str = Form(...),
@@ -296,7 +291,7 @@ def upload_pdf_file(
 ):
     user_id = get_current_user_id(request)
 
-    # 1️⃣ 파일 저장
+    # 1️. 파일 저장
     ext = os.path.splitext(file.filename)[1].lower()
     if ext != ".pdf":
         raise HTTPException(status_code=400, detail="PDF 파일만 업로드할 수 있습니다.")
@@ -307,7 +302,7 @@ def upload_pdf_file(
     with open(pdf_save_path, "wb") as f_out:
         f_out.write(file.file.read())
 
-    # 2️⃣ 페이지 수 확인 + 첫 페이지 비율 계산
+    # 2. 페이지 수 확인 + 첫 페이지 비율 계산
     doc = fitz.open(pdf_save_path)
     total_pages = doc.page_count
 
@@ -319,7 +314,7 @@ def upload_pdf_file(
         if height != 0:
             aspect_ratio = round(width / height, 5)
 
-    # 3️⃣ PdfNote DB 등록 (첫 페이지만 기준으로 비율 저장)
+    # 3. PdfNote DB 등록 (첫 페이지만 기준으로 비율 저장)
     new_note = PdfNote(
         title=title,
         file_path=pdf_save_path,
@@ -332,7 +327,7 @@ def upload_pdf_file(
     db.commit()
     db.refresh(new_note)
 
-    # 4️⃣ 각 페이지 PdfPage + 썸네일 + 개별 비율 저장
+    # 4. 각 페이지 PdfPage + 썸네일 + 개별 비율 저장
     for i in range(total_pages):
         image_filename = f"thumb_{new_note.pdf_id}_{i + 1}.png"
         image_path = f"static/thumbnails/{image_filename}"
@@ -347,7 +342,7 @@ def upload_pdf_file(
             generate_thumbnail(pdf_save_path, i + 1, image_path)
 
         except Exception as e:
-            print(f"⚠️ 페이지 {i+1} 썸네일 생성 실패: {e}")
+            print(f"페이지 {i+1} 썸네일 생성 실패: {e}")
             image_url = None
             page_aspect_ratio = None
 
@@ -356,7 +351,7 @@ def upload_pdf_file(
             page_number=i + 1,
             page_order=i + 1,
             image_preview_url=image_url,
-            aspect_ratio=page_aspect_ratio,  # ✅ 각 페이지별 비율 저장
+            aspect_ratio=page_aspect_ratio,  # 각 페이지별 비율 저장
         )
         db.add(new_page)
 
@@ -365,19 +360,19 @@ def upload_pdf_file(
 
 
 
-# ✅ 15. pdf 페이지 이미지 렌더링 (비율 포함)
+# 15. pdf 페이지 이미지 렌더링 (비율 포함)
 @router.get("/page-image/{pdf_id}/{page_number}")
 def get_pdf_page_image(pdf_id: int, page_number: int, db: Session = Depends(get_db)):
     pdf = db.query(PdfNote).filter(PdfNote.pdf_id == pdf_id).first()
     if not pdf:
         raise HTTPException(status_code=404, detail="PDF 노트를 찾을 수 없습니다.")
     
-    print(f"📂 Trying to open: {pdf.file_path}")  # 로그 추가
+    print(f"Trying to open: {pdf.file_path}")  # 로그 추가
 
     # 절대경로 테스트
     import os
     abs_path = os.path.abspath(pdf.file_path)
-    print(f"📂 Absolute path: {abs_path}")
+    print(f"Absolute path: {abs_path}")
     if not os.path.exists(abs_path):
         raise HTTPException(status_code=500, detail="PDF 파일이 존재하지 않습니다.")
 
@@ -393,7 +388,7 @@ def get_pdf_page_image(pdf_id: int, page_number: int, db: Session = Depends(get_
 
 
 
-# ✅ 16. PDF 노트 삭제 (노트 내 페이지, 필기 포함)
+# 16. PDF 노트 삭제 (노트 내 페이지, 필기 포함)
 @router.delete("/notes/{pdf_id}", status_code=200)
 def delete_pdf_note(
     pdf_id: int,
@@ -423,7 +418,7 @@ def delete_pdf_note(
 
     return {"message": "PDF 노트가 삭제되었습니다."}
 
-# ✅ 17. 노트 다른 폴더로 이동
+# 17. 노트 다른 폴더로 이동
 @router.patch("/notes/{note_id}", response_model=PdfNoteOut)
 def update_note_folder(
     note_id: int,

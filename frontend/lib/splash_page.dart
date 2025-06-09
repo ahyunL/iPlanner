@@ -102,7 +102,7 @@ class _SplashPageState extends State<SplashPage> with TickerProviderStateMixin {
               ),
             ),
 
-            // ✅ SizedBox 제거 또는 유지
+            // SizedBox 제거 또는 유지
             FadeTransition(
               opacity: _textFade,
               child: SlideTransition(

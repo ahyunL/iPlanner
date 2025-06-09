@@ -20,6 +20,22 @@ final TextEditingController fieldController = TextEditingController();         /
 final TextEditingController testNameController = TextEditingController();      // 시험 이름
 final TextEditingController materialNameController = TextEditingController();  // 자료명
 final TextEditingController customTypeController = TextEditingController();    // 사용자 입력 유형
+final List<Map<String, dynamic>> timeOptions = [
+  {'label': '5분', 'value': 5},
+  {'label': '10분', 'value': 10},
+  {'label': '15분', 'value': 15},
+  {'label': '30분', 'value': 30},
+  {'label': '45분', 'value': 45},
+  {'label': '1시간', 'value': 60},
+  {'label': '1시간 10분', 'value': 70},
+  {'label': '1시간 20분', 'value': 80},
+  {'label': '1시간 30분', 'value': 90},
+  {'label': '1시간 40분', 'value': 100},
+  {'label': '1시간 50분', 'value': 110},
+  {'label': '2시간', 'value': 120},
+];
+int selectedTime = 60;
+
 
 DateTime? testDate;                 // 시험 날짜
 DateTime _focusedTestDay = DateTime.now();  // 시험 달력 포커스
@@ -43,25 +59,25 @@ DateTime _focusedStudyDay = DateTime.now();
   final prefs = await SharedPreferences.getInstance();
   final token = prefs.getString('accessToken');
   if (token == null) {
-    print('❌ accessToken 없음');
+    print('accessToken 없음');
     return;
   }
 
   final response = await http.get(
-    Uri.parse('http://192.168.35.189:8000/subject/list'),
+    Uri.parse('http://localhost:8000/subject/list'),
     headers: {'Authorization': 'Bearer $token'},
   );
 
   if (response.statusCode == 200) {
     final List<dynamic> data = jsonDecode(utf8.decode(response.bodyBytes));
-if (!mounted) return; // ← 이 줄만 추가하면 해결됩니다.
+if (!mounted) return; 
 
     setState(() {
       subjects = data.cast<Map<String, dynamic>>();
       _tabController = TabController(length: subjects.length + 1, vsync: this);
     });
   } else {
-    print('❌ subject 불러오기 실패: ${response.statusCode}');
+    print('subject 불러오기 실패: ${response.statusCode}');
   }
 }
 
@@ -69,14 +85,14 @@ if (!mounted) return; // ← 이 줄만 추가하면 해결됩니다.
     final prefs = await SharedPreferences.getInstance();
 final token = prefs.getString('accessToken');
 if (token == null) {
-  print('❌ accessToken 없음');
+  print('accessToken 없음');
   return;
 }
 
-print('📤 저장 요청 시작: 시험명: ${testNameController.text}, 자료 개수: ${studyMaterials.length}');
+print('저장 요청 시작: 시험명: ${testNameController.text}, 자료 개수: ${studyMaterials.length}');
 
 final subjectResponse = await http.post(
-  Uri.parse('http://192.168.35.189:8000/subject/'),
+  Uri.parse('http://localhost:8000/subject/'),
   headers: {
     'Content-Type': 'application/json',
     'Authorization': 'Bearer $token',
@@ -92,34 +108,35 @@ final subjectResponse = await http.post(
 );
 
 if (subjectResponse.statusCode != 200) {
-  print('❌ subject 저장 실패');
+   print('subject 저장 실패: ${subjectResponse.body}');
   return;
 }
 
 final subjectId = jsonDecode(subjectResponse.body)['subject_id'];
-print('✅ subject 저장 성공. ID: $subjectId');
-print('🧪 studyMaterials.length: ${studyMaterials.length}');
-print('🧾 studyMaterials 내용: $studyMaterials');
+print('subject 저장 성공. ID: $subjectId');
+print('studyMaterials.length: ${studyMaterials.length}');
+print('studyMaterials 내용: $studyMaterials');
 
 for (int i = 0; i < studyMaterials.length; i++) {
   final material = studyMaterials[i];
   final response = await http.post(
-    Uri.parse('http://192.168.35.189:8000/row-plan/'),
+    Uri.parse('http://localhost:8000/row-plan/'),
     headers: {
       'Content-Type': 'application/json',
       'Authorization': 'Bearer $token',
     },
     body: jsonEncode({
       'subject_id': subjectId,
-      'row_plan_name': material['name'],
+      'row_plan_name': material['row_plan_name'],
       'type': material['type'],
       'repetition': material['repetition'],
       'ranking': i + 1,
+       'plan_time': material['plan_time'],
     }),
   );
 
-  print("📤 [$i] row_plan 저장 응답: ${response.statusCode}");
-  print("📄 [$i] 응답 내용: ${response.body}");
+  print("[$i] row_plan 저장 응답: ${response.statusCode}");
+  print("[$i] 응답 내용: ${response.body}");
 }
 
   }
@@ -150,7 +167,7 @@ final token = prefs.getString('accessToken');
 if (token == null) return;
 
 final response = await http.post(
-  Uri.parse('http://192.168.35.189:8000/plan/schedule'),
+  Uri.parse('http://localhost:8000/plan/schedule'),
   headers: {
     'Content-Type': 'application/json',
     'Authorization': 'Bearer $token',
@@ -181,7 +198,7 @@ final token = prefs.getString('accessToken');
 if (token == null) return;
 
 final response = await http.delete(
-  Uri.parse('http://192.168.35.189:8000/subject/delete-all'),
+  Uri.parse('http://localhost:8000/subject/delete-all'),
   headers: {
     'Authorization': 'Bearer $token',
   },
@@ -212,9 +229,9 @@ final response = await http.delete(
                     if (index == subjects.length) {
                      setState(() {
   isNewSubject = true;
-  fieldController.clear();       // ← 수정됨
-  testNameController.clear();    // ← 수정됨
-  testDate = null;               // ← 수정됨
+  fieldController.clear();       
+  testNameController.clear();    
+  testDate = null;               
   startDate = null;
   endDate = null;
   studyMaterials.clear();
@@ -257,12 +274,12 @@ const SizedBox(height: 10),
               TableCalendar(
                 firstDay: DateTime.utc(2023, 1, 1),
                 lastDay: DateTime.utc(2030, 12, 31),
-                focusedDay: _focusedTestDay,                            // ✅ 수정
-selectedDayPredicate: (day) => isSameDay(testDate, day), // ✅ 수정
+                focusedDay: _focusedTestDay,
+selectedDayPredicate: (day) => isSameDay(testDate, day),
 onDaySelected: (selectedDay, focusedDay) {
   setState(() {
-    testDate = selectedDay;                             // ✅ 수정
-    _focusedTestDay = focusedDay;                       // ✅ 수정
+    testDate = selectedDay;
+    _focusedTestDay = focusedDay;
   });
 },
 
@@ -305,6 +322,7 @@ onDaySelected: (selectedDay, focusedDay) {
               const Divider(),
               const Text('학습 자료 추가', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               TextField(controller: materialNameController, decoration: const InputDecoration(labelText: '자료명')),
+
               Row(children: [
                 DropdownButton<String>(
                   value: selectedType,
@@ -343,17 +361,41 @@ onDaySelected: (selectedDay, focusedDay) {
                   ),
                 ],
               ),
+               Row(
+  children: [
+    const Text('예상 학습 시간:  '),
+    DropdownButton<int>(
+      value: selectedTime,
+      onChanged: (value) {
+        setState(() {
+          selectedTime = value!;
+        });
+      },
+      items: timeOptions.map((option) {
+        return DropdownMenuItem<int>(
+          value: option['value'],
+          child: Text(option['label']),
+        );
+      }).toList(),
+    ),
+  ],
+),
+
               ElevatedButton(
                 onPressed: () {
                   final type = selectedType == '직접입력' ? customTypeController.text : selectedType;
                   setState(() {
                     studyMaterials.add({
-                      'name': materialNameController.text,
+                      'row_plan_name': materialNameController.text,
                       'type': type,
                       'repetition': repeatCount,
+                      'plan_time': selectedTime,
+
+
                     });
                     materialNameController.clear();
                     customTypeController.clear();
+
                     selectedType = '책';
                     repeatCount = 1;
                   });
@@ -364,12 +406,15 @@ onDaySelected: (selectedDay, focusedDay) {
               ...studyMaterials.map((item) {
                 return Card(
                   child: ListTile(
-                    title: Text(item['name']),
-                    subtitle: Text('유형: ${item['type']}, 반복: ${item['repetition']}회'), // ✅ 수정
+                    title: Text(item['row_plan_name'] ?? ''),
+
+                    subtitle: Text('유형: ${item['type']}, 반복: ${item['repetition']}회'), 
 
                   ),
                 );
               }),
+
+
               const SizedBox(height: 20),
               Center(
                 child: SizedBox(

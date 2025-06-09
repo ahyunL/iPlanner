@@ -15,7 +15,7 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 db = pymysql.connect(
     host='localhost',
     user='root',
-    password='ssdbwlsdl12!',
+    password='1204',
     database='yuminsu',
     charset='utf8mb4',
     cursorclass=pymysql.cursors.DictCursor
@@ -44,7 +44,7 @@ def get_plan_schedule_from_gpt(data: dict) -> list:
     try:
         return json.loads(result)
     except Exception as e:
-        print("❌ GPT 응답 파싱 실패:", result)
+        print("GPT 응답 파싱 실패:", result)
         return []
 
 # 재생성할 유저 ID (임시 고정)
@@ -162,9 +162,9 @@ try:
         user, subjects, plans = fetch_user_data(cursor, TARGET_USER_ID)
 
         if not user:
-            print("❌ 해당 유저 없음.")
+            print("해당 유저 없음.")
         elif not plans:
-            print("✅ 배정할 계획이 없습니다.")
+            print("배정할 계획이 없습니다.")
         else:
             reset_old_plan_dates(cursor, TARGET_USER_ID)
             prompt_data = build_prompt_data(user, subjects, plans)
@@ -175,9 +175,9 @@ try:
             if plan_dates:
                 updated_count = apply_plan_dates(cursor, plan_dates)
                 db.commit()
-                print(f"✅ GPT로 plan_date {updated_count}건 성공적으로 배정 완료!")
+                print(f"GPT로 plan_date {updated_count}건 성공적으로 배정 완료!")
 
 except Exception as e:
-    print("❌ 전체 오류 발생:", e)
+    print("전체 오류 발생:", e)
 finally:
     db.close()

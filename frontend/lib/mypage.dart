@@ -23,7 +23,7 @@ class _MyPageState extends State<MyPage> {
   String password = '********';
 
   void refreshActualStudyTimeFromOutside() async {
-    print("✅ 마이페이지 새로고침 호출됨");
+    print("마이페이지 새로고침 호출됨");
     await fetchUserProfile();         // 서버에서 계획 시간 다시 불러오기
     setState(() {});                  // UI 다시 그림
   }
@@ -187,7 +187,7 @@ Widget _buildStudyTimeSection() {
         const Text('이번주 공부시간', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
         const SizedBox(height: 12),
 
-        // ✅ 목표 공부시간 테이블
+        // 목표 공부시간 테이블
         Table(
           border: TableBorder.symmetric(inside: BorderSide(color: Colors.grey.shade300)),
           defaultVerticalAlignment: TableCellVerticalAlignment.middle,
@@ -223,7 +223,7 @@ Widget _buildStudyTimeSection() {
         const Text('실제 공부시간', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
         const SizedBox(height: 12),
 
-        // ✅ 실제 공부시간 테이블
+        // 실제 공부시간 테이블
         Consumer<TimerProvider>(
           builder: (context, timerProvider, child) {
             final studyMap = timerProvider.weeklyStudy;
@@ -286,7 +286,7 @@ Widget _buildStudyTimeSection() {
       if (accessToken == null) return;
 
       final response = await http.get(
-        Uri.parse('http://192.168.35.189:8000/user/profile'),
+        Uri.parse('http://localhost:8000/user/profile'),
         headers: {
           'Authorization': 'Bearer $accessToken',
           'Content-Type': 'application/json; charset=UTF-8',
@@ -313,10 +313,10 @@ Widget _buildStudyTimeSection() {
           };
         });
       } else {
-        print('❌ 프로필 불러오기 실패: ${response.statusCode}, ${response.body}');
+        print('프로필 불러오기 실패: ${response.statusCode}, ${response.body}');
       }
     } catch (e) {
-      print('❗ 예외 발생: $e');
+      print('예외 발생: $e');
     }
   }
 }

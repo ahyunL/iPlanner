@@ -10,12 +10,12 @@ from typing import Dict
 
 router = APIRouter()
 
-# ✅ 타이머 저장용 스키마
+# 타이머 저장용 스키마
 class TimerCreate(BaseModel):
     study_date: date
     total_minutes: int
 
-# ✅ 공부 시간 저장 (추가 또는 갱신)
+# 공부 시간 저장 (추가 또는 갱신)
 @router.post("/")
 def add_or_update_timer(
     data: TimerCreate,
@@ -40,7 +40,7 @@ def add_or_update_timer(
     db.commit()
     return {"message": "Timer recorded", "minutes": timer.total_minutes}
 
-# ✅ 특정 날짜 공부 시간 조회
+# 특정 날짜 공부 시간 조회
 @router.get("/timer/{study_date}")
 def get_timer(
     study_date: date,
@@ -55,7 +55,7 @@ def get_timer(
         raise HTTPException(status_code=404, detail="No timer found")
     return {"total_minutes": timer.total_minutes}
 
-# ✅ 오늘 공부 시간 조회
+# 오늘 공부 시간 조회
 @router.get("/today")
 def get_today_time(
     current_user: user_model.User = Depends(get_current_user),
@@ -68,7 +68,7 @@ def get_today_time(
     ).first()
     return {"today_minutes": timer.total_minutes if timer else 0}
 
-# ✅ 주간 전체 합계 조회
+# 주간 전체 합계 조회
 @router.get("/weekly")
 def get_weekly_total_time(
     current_user: user_model.User = Depends(get_current_user),
@@ -87,7 +87,7 @@ def get_weekly_total_time(
     weekly_minutes = sum(t.total_minutes for t in total)
     return {"weekly_minutes": weekly_minutes}
 
-# ✅ 주간 요일별 공부 시간 (주차 이동 지원)
+# 주간 요일별 공부 시간 (주차 이동 지원)
 @router.get("/weekly-by-day")
 def get_weekly_minutes_by_day(
     week_offset: int = 0,
