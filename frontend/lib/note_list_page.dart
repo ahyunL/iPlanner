@@ -9,7 +9,7 @@ import 'dart:io';  // File 객체 사용 (모바일에서만 필요)
 
 Map<int, List<Stroke>> pageStrokes = {};  // 썸네일 테스트용
 const String baseUrl = 'http://localhost:8000'; // 또는 실제 서버 주소
-
+const cobaltBlue = Color(0xFF004377);
 
 //pdf 업로드 기능 때문에 모바일로만 실행 가능.
 /// 노트 모델 클래스
@@ -43,6 +43,7 @@ class NoteListPage extends StatefulWidget {
 class _NoteListPageState extends State<NoteListPage> {
   List<NoteItem> notes = [];
   String _sortOption = '최신순';
+  
 
 
   @override
@@ -165,32 +166,28 @@ class _NoteListPageState extends State<NoteListPage> {
           const DrawerHeader(
             child: Text(
               '메뉴',
-              style: TextStyle(fontSize: 20, color: Color(0xFF004377)),
+              style: TextStyle(fontSize: 20, color: cobaltBlue),
             ),
-          ),
-          ExpansionTile(
-            title: const Text(
-              'PDF',
-              style: TextStyle(color: Color(0xFF004377)),
-            ),
-            children: const [
-              ListTile(title: Text('- A과목')),
-              ListTile(title: Text('- B과목')),
-              ListTile(title: Text('- PDF')),
-            ],
           ),
           ListTile(
-            title: const Text(
-              'AI 학습플래너',
-              style: TextStyle(color: Color(0xFF004377)),
-            ),
+            title: const Text('PDF', style: TextStyle(color: cobaltBlue)),
+            onTap: () => Navigator.pushNamed(context, '/folder'),
+          ),
+          ListTile(
+            title: const Text('홈', style: TextStyle(color: cobaltBlue)),
             onTap: () => Navigator.pushNamed(context, '/home'),
           ),
-          const ListTile(
-            title: Text('스터디 타이머', style: TextStyle(color: Color(0xFF004377))),
+          ListTile(
+            title: const Text('AI 학습플래너', style: TextStyle(color: cobaltBlue)),
+            onTap: () => Navigator.pushNamed(context, '/submain'),
           ),
-          const ListTile(
-            title: Text('마이페이지', style: TextStyle(color: Color(0xFF004377))),
+          ListTile(
+            title: const Text('스터디 타이머', style: TextStyle(color:cobaltBlue)),
+            onTap: () => Navigator.pushNamed(context, '/timer'),
+          ),
+          ListTile(
+            title: const Text('마이페이지', style: TextStyle(color: cobaltBlue)),
+            onTap: () => Navigator.pushNamed(context, '/mypage'),
           ),
         ],
       ),
@@ -202,7 +199,13 @@ class _NoteListPageState extends State<NoteListPage> {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5), 
       appBar: AppBar(
-        
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            Navigator.pop(context); // 이전 페이지(FolderHomePage)로 정상 복귀
+          },
+        ),
+              
         title: Text('${widget.folderName}',
         style: const TextStyle(color: Colors.black87),
         ),
@@ -315,6 +318,7 @@ class _NoteListPageState extends State<NoteListPage> {
             ),
           );
         },
+        backgroundColor: cobaltBlue, 
         child: const Icon(Icons.add),
       ),
     );

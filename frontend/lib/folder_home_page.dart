@@ -280,35 +280,25 @@ class _FolderHomePageState extends State<FolderHomePage> {
               style: TextStyle(fontSize: 20, color: FolderHomePage.cobaltBlue),
             ),
           ),
-          ExpansionTile(
-            title: const Text(
-              'PDF',
-              style: TextStyle(color: FolderHomePage.cobaltBlue),
-            ),
-            children: const [
-              ListTile(title: Text('- A과목')),
-              ListTile(title: Text('- B과목')),
-              ListTile(title: Text('- PDF')),
-            ],
+          ListTile(
+            title: const Text('PDF', style: TextStyle(color: FolderHomePage.cobaltBlue)),
+            onTap: () => Navigator.pushNamed(context, '/folder'),
           ),
           ListTile(
-            title: const Text(
-              'AI 학습플래너',
-              style: TextStyle(color: FolderHomePage.cobaltBlue),
-            ),
+            title: const Text('홈', style: TextStyle(color: FolderHomePage.cobaltBlue)),
             onTap: () => Navigator.pushNamed(context, '/home'),
           ),
-          const ListTile(
-            title: Text(
-              '스터디 타이머',
-              style: TextStyle(color: FolderHomePage.cobaltBlue),
-            ),
+          ListTile(
+            title: const Text('AI 학습플래너', style: TextStyle(color: FolderHomePage.cobaltBlue)),
+            onTap: () => Navigator.pushNamed(context, '/submain'),
           ),
-          const ListTile(
-            title: Text(
-              '마이페이지',
-              style: TextStyle(color: FolderHomePage.cobaltBlue),
-            ),
+          ListTile(
+            title: const Text('스터디 타이머', style: TextStyle(color: FolderHomePage.cobaltBlue)),
+            onTap: () => Navigator.pushNamed(context, '/timer'),
+          ),
+          ListTile(
+            title: const Text('마이페이지', style: TextStyle(color: FolderHomePage.cobaltBlue)),
+            onTap: () => Navigator.pushNamed(context, '/mypage'),
           ),
         ],
       ),

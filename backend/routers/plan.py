@@ -1,11 +1,13 @@
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from db import get_db
 from models import plan as plan_model, subject as subject_model, timer as timer_model, user as user_model
 from pydantic import BaseModel
 from utils.auth import get_current_user
+from models import Plan
+from utils.auth import get_user_id_from_token
 
 from typing import Optional
 import datetime
@@ -250,7 +252,8 @@ def get_weekly_grouped_plans(
             "plan_name": plan.plan_name,
             "plan_time": plan.plan_time,
             "complete": bool(plan.complete),
-            "plan_date": plan.plan_date.isoformat() if plan.plan_date else None
+            "plan_date": plan.plan_date.isoformat() if plan.plan_date else None,
+            "subject_id": plan.subject_id,
         })
     return grouped
 
@@ -331,3 +334,26 @@ def get_plan_stats(
         "weekly_rate": min(weekly_minutes / weekly_goal, 1.0) if weekly_goal > 0 else 0.0,
         "weekly_minutes": weekly_minutes,
     }
+
+# ---------------------- 플랜 삭제 ---------------------- #
+
+
+@router.delete("/{plan_id}")
+def delete_plan(plan_id: int, request: Request, db: Session = Depends(get_db)):
+    token = request.headers.get("Authorization").split(" ")[1]
+    user_id = get_user_id_from_token(token)
+
+    print(f" user_id from token: {user_id}")
+    print(f" plan_id: {plan_id}")
+
+    plan = db.query(Plan).filter(Plan.plan_id == plan_id, Plan.user_id == user_id).first()
+
+
+    print(f" plan found? {plan is not None}")
+
+    if not plan:
+        raise HTTPException(status_code=404, detail="해당 계획이 존재하지 않거나 권한이 없습니다.")
+
+    db.delete(plan)
+    db.commit()
+    return {"message": f"Plan {plan_id} deleted"}

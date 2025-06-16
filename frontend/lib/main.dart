@@ -11,7 +11,7 @@ import 'package:table_calendar/table_calendar.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:provider/provider.dart';  // 🔧 꼭 추가!
+import 'package:provider/provider.dart';
 // import 'todo_provider_main.dart';
 import 'todo_provider.dart';
 import 'mypage.dart'; 
@@ -47,6 +47,10 @@ class StudyApp extends StatelessWidget {
         '/folder': (context) => FolderHomePage(),
         '/home': (context) => const PageViewContainer(),
         '/studyplan': (context) => const StudyPlanPage(),
+
+        '/submain': (context) => const SubMainPage(), // 서브메인
+        '/mypage': (context) => const MyPage(),       // 마이페이지
+        '/timer': (context) => const TimerPage(),     // 타이머
       },
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
@@ -323,7 +327,7 @@ class HomePageState extends State<HomePage> {
       await fetchCalendarEvents();  // 캘린더 이벤트 반영
       setState(() {});              // 전체 UI 갱신
     } else {
-      print('❌ complete 변경 실패: ${res.statusCode}');
+      print('complete 변경 실패: ${res.statusCode}');
     }
   }
 

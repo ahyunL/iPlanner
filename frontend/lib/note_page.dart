@@ -153,6 +153,12 @@ class _NotePageState extends State<NotePage> {
       },
       child: Scaffold(
         appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () {
+              Navigator.pop(context); // 현재 페이지 pop → 이전 NoteListPage로 돌아감
+            },
+          ),
           title: Text(
             widget.noteTitle,
             style: GoogleFonts.notoSansKr(fontSize: 20),

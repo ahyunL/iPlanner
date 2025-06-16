@@ -20,7 +20,7 @@ class SubjectCreate(BaseModel):
     end_date: datetime
 
 # 과목 전체 리스트 조회
-@router.get("/subject/list")
+@router.get("/list")
 def list_subjects(request: Request, db: Session = Depends(get_db)):
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
@@ -84,7 +84,7 @@ def create_subject(request: Request, subject: SubjectCreate, db: Session = Depen
         raise HTTPException(status_code=500, detail=f"Subject 저장 실패: {str(e)}")
 
 # 전체 학습 데이터 삭제
-@router.delete("/subject/delete-all")
+@router.delete("/delete-all")
 def delete_all_study_data(request: Request, db: Session = Depends(get_db)):
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
@@ -98,3 +98,40 @@ def delete_all_study_data(request: Request, db: Session = Depends(get_db)):
     db.query(Subject).filter(Subject.user_id == user_id).delete()
     db.commit()
     return {"message": "Deleted all study data for user"}
+
+
+@router.delete("/{subject_id}")
+def delete_single_subject(subject_id: int, request: Request, db: Session = Depends(get_db)):
+    print(f"[과목 삭제 요청] subject_id: {subject_id}")
+
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        print("Authorization 헤더가 없음")
+        raise HTTPException(status_code=401, detail="토큰이 없습니다.")
+
+    token = auth_header.split(" ")[1]
+    user_id = get_user_id_from_token(token)
+    print(f"user_id from token: {user_id}")
+
+    # subject 검색
+    subject = db.query(Subject).filter(
+        Subject.subject_id == subject_id,
+        Subject.user_id == user_id
+    ).first()
+    print(f"subject exists? {subject is not None}")
+
+    if not subject:
+        print("해당 유저의 과목이 아님 (혹은 존재하지 않음)")
+        raise HTTPException(status_code=404, detail="해당 과목을 찾을 수 없습니다.")
+
+    # 관련된 계획 삭제
+    deleted_plan_count = db.query(Plan).filter(Plan.subject_id == subject_id).delete()
+    deleted_row_count = db.query(RowPlan).filter(RowPlan.subject_id == subject_id).delete()
+    print(f"연결된 Plan 삭제 수: {deleted_plan_count}, RowPlan 삭제 수: {deleted_row_count}")
+
+    db.delete(subject)
+    db.commit()
+    print(f"과목 삭제 완료: subject_id={subject_id}")
+
+    return {"message": f"과목 및 관련 계획이 삭제되었습니다. (subject_id={subject_id})"}
+

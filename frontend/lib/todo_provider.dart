@@ -1,4 +1,5 @@
 
+
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -8,12 +9,10 @@ class TodoProvider with ChangeNotifier {
   Map<String, List<Map<String, dynamic>>> weeklyTodos = {};
   Map<String, List<bool>> todoChecked = {};
   Map<String, List<int>> planIdMap = {};
+  Map<String, int> subjectIds = {}; 
 
-  // 오늘 할 일 관련
   Map<String, List<Map<String, dynamic>>> todayTodosGrouped = {};
   Map<int, bool> todayCheckedMap = {};
-
-  // -------------------- 오늘 할 일 관련 -------------------- //
 
   void groupTodayTodosBySubject(List<Map<String, dynamic>> rawTodos) {
     final Map<String, List<Map<String, dynamic>>> grouped = {};
@@ -48,7 +47,6 @@ class TodoProvider with ChangeNotifier {
         final bool isChecked = todo['complete'] ?? false;
         todayCheckedMap[planId] = isChecked;
       }
-
       notifyListeners();
     } else {
       print("오늘 할 일 불러오기 실패: ${response.statusCode}");
@@ -73,42 +71,31 @@ class TodoProvider with ChangeNotifier {
       body: jsonEncode({"complete": value}),
     );
 
-    if (response.statusCode == 200) {
-      print("체크 변경 완료: planId=$planId → $value");
-    } else {
+    if (response.statusCode != 200) {
       print("체크 변경 실패: ${response.statusCode}");
     }
   }
 
-  // -------------------- 주간 할 일 관련 -------------------- //
-
   Future<void> fetchTodosFromDB({int retry = 0}) async {
-    print("fetchTodosFromDB 시작");
-
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('accessToken');
 
     if (token == null) {
       if (retry < 5) {
-        print("accessToken 없음 → 0.5초 뒤 재시도 ($retry)");
         await Future.delayed(const Duration(milliseconds: 500));
         return fetchTodosFromDB(retry: retry + 1);
       } else {
-        print("최대 재시도 초과: SharedPreferences accessToken 없음");
         return;
       }
     }
 
-    final url = Uri.parse("http://localhost:8000/plan/weekly-grouped");
     final response = await http.get(
-      url,
+      Uri.parse("http://localhost:8000/plan/weekly-grouped"),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
       },
     );
-
-    print("응답 상태: ${response.statusCode}");
 
     if (response.statusCode == 200) {
       final data = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
@@ -116,6 +103,7 @@ class TodoProvider with ChangeNotifier {
       weeklyTodos.clear();
       todoChecked.clear();
       planIdMap.clear();
+      subjectIds.clear(); 
 
       data.forEach((subject, items) {
         final List<Map<String, dynamic>> todos = [];
@@ -127,6 +115,7 @@ class TodoProvider with ChangeNotifier {
             'text': item["plan_name"],
             'plan_time': item["plan_time"],
             'plan_date': item["plan_date"],
+            'plan_id': item["plan_id"], 
           });
           checks.add(item["complete"] == true);
           ids.add(item["plan_id"]);
@@ -135,9 +124,12 @@ class TodoProvider with ChangeNotifier {
         weeklyTodos[subject] = todos;
         todoChecked[subject] = checks;
         planIdMap[subject] = ids;
+
+        if (items.isNotEmpty && items[0]['subject_id'] != null) {
+          subjectIds[subject] = items[0]['subject_id']; 
+        }
       });
 
-      print("주간 투두 불러오기 완료: $weeklyTodos");
       notifyListeners();
     } else {
       print("할 일 불러오기 실패: ${response.statusCode}, ${response.body}");
@@ -155,7 +147,7 @@ class TodoProvider with ChangeNotifier {
 
       if (token != null && planId != null) {
         final url = Uri.parse("http://localhost:8000/plan/$planId/complete");
-        final response = await http.patch(
+        await http.patch(
           url,
           headers: {
             'Content-Type': 'application/json',
@@ -163,8 +155,6 @@ class TodoProvider with ChangeNotifier {
           },
           body: jsonEncode({"complete": value ?? false}),
         );
-        print("체크 변경 응답: ${response.statusCode}");
-
         await fetchTodosFromDB();
       }
     }
@@ -198,7 +188,7 @@ class TodoProvider with ChangeNotifier {
 
     weeklyTodos[subject]!.add(newTodo);
     todoChecked[subject]!.add(false);
-    planIdMap[subject]!.add(-1); 
+    planIdMap[subject]!.add(-1);
     notifyListeners();
   }
 
@@ -218,6 +208,7 @@ class TodoProvider with ChangeNotifier {
     weeklyTodos.clear();
     todoChecked.clear();
     planIdMap.clear();
+    subjectIds.clear();
     todayTodosGrouped.clear();
     todayCheckedMap.clear();
     notifyListeners();
