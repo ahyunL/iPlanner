@@ -6,10 +6,20 @@ import 'dart:convert';
 import 'mypage.dart'; // MyPageState 접근을 위해
 import 'main.dart';
 import 'package:provider/provider.dart'; 
+import 'package:capstone_edu_app/study_session.dart';
+
 
 class TimerProvider extends ChangeNotifier {
   final Stopwatch _stopwatch = Stopwatch();
   Timer? _timer;
+  List<Map<String, dynamic>> _studySessions = [];//25.7.3 공부 타임 세션 여러개 저장을 위해 추가.
+
+  List<StudySession> _sessionList = []; //_studySessions는 로컬 저장할 세션, _sessionList는 서버에서 불러온 날짜별 기록
+  List<StudySession> get sessionList => _sessionList;
+
+
+  DateTime? _sessionStartTime; //25.7.2. 타이머 시작 시간대 저장 위해서 추가.
+  DateTime? _sessionEndTime; //25.7.2. 타이머 종료 시간대 저장 위해서 추가.
   Duration _elapsed = Duration.zero;
   Duration _lastElapsed = Duration.zero;
 
@@ -27,27 +37,34 @@ class TimerProvider extends ChangeNotifier {
     return '$h:$m:$s';
   }
 
+
+
   void start() async {
     if (_stopwatch.isRunning) return;
 
     final prefs = await SharedPreferences.getInstance();
     final now = DateTime.now();
+
+    _sessionStartTime = now;
+
     prefs.setString('sessionStart', now.toIso8601String());
     prefs.setInt('elapsedBefore', _lastElapsed.inMinutes);
     prefs.setString('sessionDate', now.toIso8601String().split('T')[0]);
 
     _stopwatch.start();
-    print('타이머 시작됨: ${_stopwatch.elapsed}'); // 타이머 시작 직후 출력
+    print('타이머 시작됨: ${_stopwatch.elapsed}');
 
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       _elapsed = _stopwatch.elapsed + _lastElapsed;
-      print('진행 시간: $_elapsed'); // 매 초마다 출력
+      print('진행 시간: $_elapsed');
       notifyListeners();
     });
 
     notifyListeners();
   }
 
+
+// 프론트엔드에서 전의 공부시간 안 불러오는 문제.
   Future<void> restoreTimerState() async {
     final prefs = await SharedPreferences.getInstance();
     final sessionStartStr = prefs.getString('sessionStart');
@@ -56,13 +73,19 @@ class TimerProvider extends ChangeNotifier {
 
     final todayStr = DateTime.now().toIso8601String().split('T')[0];
 
+    // 1. 날짜 변경 시 서버 저장 후 초기화
     if (sessionDate != null && sessionDate != todayStr) {
       print('🗕️ 날짜 변경 감지! 전날 공백시간 저장 및 리셋');
 
-      await saveStudyTimeToServer(
-        DateTime.parse(sessionDate),
-        elapsedBefore,
-      );
+      _studySessions.add({
+        'study_date': sessionDate,
+        'total_minutes': elapsedBefore,
+        'start_time': DateTime.parse(sessionDate).toIso8601String(),
+        'end_time': DateTime.parse(sessionDate).toIso8601String(),
+      });
+
+      await saveStudySessionsToServer();
+
       reset();
       prefs.remove('sessionStart');
       prefs.remove('sessionDate');
@@ -70,18 +93,41 @@ class TimerProvider extends ChangeNotifier {
       return;
     }
 
+    // 2. 오늘의 누적 시간 서버에서 불러오기
+    final accessToken = prefs.getString('accessToken');
+    if (accessToken != null) {
+      final response = await http.get(
+        Uri.parse('http://localhost:8000/timer/today'),
+        headers: {
+          'Authorization': 'Bearer $accessToken',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(utf8.decode(response.bodyBytes));
+        final todayMinutes = data['today_minutes'] ?? 0;
+        _lastElapsed = Duration(minutes: todayMinutes);
+        _elapsed = _lastElapsed;
+        print('서버에서 누적 시간 로드됨: $_lastElapsed');
+      } else {
+        print('서버 누적 시간 로딩 실패: ${response.body}');
+      }
+    }
+
+    // 3. 세션 기록이 있으면 복원 (정지 상태 유지)
     if (sessionStartStr != null) {
       final startTime = DateTime.parse(sessionStartStr);
       final now = DateTime.now();
       final diff = now.difference(startTime);
 
-      _lastElapsed = Duration(minutes: elapsedBefore);
-      _elapsed = _lastElapsed; 
-
+      _elapsed = _lastElapsed;  // 이 시점에서 elapsed는 DB+로컬 값
       notifyListeners();
       print('이전 타이머 복원됨 (멈춘 상태): $_elapsed');
     }
+
+    notifyListeners();
   }
+
 
   Map<String, Duration> weeklyStudy = {
     '월': Duration.zero,
@@ -93,31 +139,44 @@ class TimerProvider extends ChangeNotifier {
     '일': Duration.zero,
   };
 
-  Future<void> pause() async {
+
+  void pause() async {
     print('pause 함수 진입');
     _stopwatch.stop();
+
+    _sessionEndTime = DateTime.now();
     _timer?.cancel();
 
     final now = DateTime.now();
     final today = ['월', '화', '수', '목', '금', '토', '일'][now.weekday - 1];
 
-    // stopwatch 리셋 전에 누적 먼저 처리
-    weeklyStudy[today] = (weeklyStudy[today] ?? Duration.zero) + _stopwatch.elapsed;
+    weeklyStudy[today] =
+        (weeklyStudy[today] ?? Duration.zero) + _stopwatch.elapsed;
 
     _lastElapsed += _stopwatch.elapsed;
-    _stopwatch.reset(); // 이 시점에 리셋해야 누적 계산이 정확
+    _stopwatch.reset();
     _elapsed = _lastElapsed;
 
-    final totalSeconds = weeklyStudy[today]!.inSeconds;
-    final roundedMinutes = (totalSeconds / 60).round();
+    // 세션 길이 계산 후 리스트에 추가
+    if (_sessionStartTime != null && _sessionEndTime != null) {
+      final sessionMinutes =
+          ((_sessionEndTime!.difference(_sessionStartTime!).inSeconds) / 60).round();
 
-    print('청 누적 초: $totalSeconds');
-    print('저장할 분(반올림): $roundedMinutes');
+      _studySessions.add({
+        'study_date': now.toIso8601String().split('T')[0],
+        'total_minutes': sessionMinutes,
+        'start_time': _sessionStartTime!.toIso8601String(),
+        'end_time': _sessionEndTime!.toIso8601String(),
+      });
 
-    await saveStudyTimeToServer(now, roundedMinutes);
+      print('세션 추가됨: ${_studySessions.last}');
+    }
+
+    // 기존 누적 시간 저장 및 서버 동기화
+    await saveStudySessionsToServer(); // 수정 예정
 
     final prefs = await SharedPreferences.getInstance();
-    prefs.setInt('elapsedBefore', _lastElapsed.inMinutes);  // _elapsed 말고 _lastElapsed 저장
+    prefs.setInt('elapsedBefore', _lastElapsed.inMinutes);
 
     BuildContext? context = navigatorKey.currentContext;
     if (context != null) {
@@ -127,7 +186,6 @@ class TimerProvider extends ChangeNotifier {
       final myPageState = context.findAncestorStateOfType<MyPageState>();
       myPageState?.refreshActualStudyTimeFromOutside();
 
-      // 도넛 그래프용 TimerProvider 값도 갱신
       final timerProvider = Provider.of<TimerProvider>(context, listen: false);
       await timerProvider.loadWeeklyStudyFromServer();
     }
@@ -137,7 +195,7 @@ class TimerProvider extends ChangeNotifier {
 
 
 
-  Future<void> saveStudyTimeToServer(DateTime studyDate, int totalMinutes) async {
+  Future<void> saveStudySessionsToServer() async {
     final prefs = await SharedPreferences.getInstance();
     final accessToken = prefs.getString('accessToken');
     if (accessToken == null) {
@@ -145,25 +203,25 @@ class TimerProvider extends ChangeNotifier {
       return;
     }
 
-    final studyDateStr = studyDate.toIso8601String().split('T')[0];
-    print('서버로 보낼 데이터: $studyDateStr, $totalMinutes');
+    for (var session in _studySessions) {
+      print('서버로 보낼 세션: $session');
 
-    final response = await http.post(
-      Uri.parse('http://localhost:8000/timer/'),
-      headers: {
-        'Authorization': 'Bearer $accessToken',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode({
-        'study_date': studyDateStr,
-        'total_minutes': totalMinutes,
-      }),
-    );
+      final response = await http.post(
+        Uri.parse('http://localhost:8000/timer/'),
+        headers: {
+          'Authorization': 'Bearer $accessToken',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(session),
+      );
 
-    print('서버 응답 상태: ${response.statusCode}');
-    print('응답 내용: ${response.body}');
+      print('서버 응답 상태: ${response.statusCode}');
+      print('응답 내용: ${response.body}');
+    }
+
+    // 전송 후 리스트 비우기
+    _studySessions.clear();
   }
-
 
 
 
@@ -214,6 +272,31 @@ class TimerProvider extends ChangeNotifier {
       notifyListeners();
     } else {
       print('서버에서 실제 공백시간 불러오기 실패: ${response.body}');
+    }
+  }
+
+  // 날짜를 기준으로 모든 세션을 백엔드에서 불러와 _sessionList에 저장
+  Future<void> fetchSessionsByDate(DateTime date) async {
+    final prefs = await SharedPreferences.getInstance();
+    final accessToken = prefs.getString('accessToken');
+    if (accessToken == null) return;
+
+    final dateStr = date.toIso8601String().split('T')[0];
+
+    final response = await http.get(
+      Uri.parse('http://localhost:8000/timer/sessions/$dateStr'),
+      headers: {
+        'Authorization': 'Bearer $accessToken',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final List<dynamic> data = json.decode(utf8.decode(response.bodyBytes));
+      _sessionList = data.map((e) => StudySession.fromJson(e)).toList();
+      print('$dateStr 세션 불러오기 완료: ${_sessionList.length}개');
+      notifyListeners();
+    } else {
+      print('세션 불러오기 실패: ${response.body}');
     }
   }
 
