@@ -8,7 +8,7 @@ import 'dart:io';  // File 객체 사용 (모바일에서만 필요)
 
 
 Map<int, List<Stroke>> pageStrokes = {};  // 썸네일 테스트용
-const String baseUrl = 'http://localhost:8000'; // 또는 실제 서버 주소
+const String baseUrl = 'http://10.0.2.2:8000'; // 또는 실제 서버 주소
 const cobaltBlue = Color(0xFF004377);
 
 //pdf 업로드 기능 때문에 모바일로만 실행 가능.
@@ -64,7 +64,7 @@ class _NoteListPageState extends State<NoteListPage> {
 
     try {
       final response = await http.get(
-        Uri.parse('http://localhost:8000/pdf/notes/${widget.folderId}'),
+        Uri.parse('http://10.0.2.2:8000/pdf/notes/${widget.folderId}'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $accessToken',
@@ -120,7 +120,7 @@ class _NoteListPageState extends State<NoteListPage> {
 
     try {
       final response = await http.post(
-        Uri.parse('http://localhost:8000/pdf/notes'),
+        Uri.parse('http://10.0.2.2:8000/pdf/notes'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $accessToken',
@@ -366,7 +366,7 @@ class _NoteListPageState extends State<NoteListPage> {
       final fileName = pickedFile.name;
 
       final accessToken = await getAccessToken();
-      final uri = Uri.parse('http://localhost:8000/pdf/upload');
+      final uri = Uri.parse('http://10.0.2.2:8000/pdf/upload');
 
       final request = http.MultipartRequest('POST', uri)
         ..headers['Authorization'] = 'Bearer $accessToken'
@@ -458,7 +458,7 @@ class _NoteItemCardState extends State<NoteItemCard> {
     try {
       // 썸네일 먼저 시도
       final response = await http.get(
-        Uri.parse('http://localhost:8000/pdf/pages/${widget.note.id}'),
+        Uri.parse('http://10.0.2.2:8000/pdf/pages/${widget.note.id}'),
         headers: {
           'Authorization': 'Bearer $accessToken',
         },
@@ -471,7 +471,7 @@ class _NoteItemCardState extends State<NoteItemCard> {
           final imageUrl = firstPage['image_preview_url'];
           setState(() {
             if (imageUrl != null) {
-              thumbnailUrl = 'http://localhost:8000$imageUrl';
+              thumbnailUrl = 'http://10.0.2.2:8000$imageUrl';
             } else {
               firstPageId = firstPage['page_id'];
             }
@@ -605,7 +605,7 @@ class _NoteItemCardState extends State<NoteItemCard> {
     final token = prefs.getString('accessToken');
 
     final response = await http.get(
-      Uri.parse('http://localhost:8000/pdf/folders'),
+      Uri.parse('http://10.0.2.2:8000/pdf/folders'),
       headers: {'Authorization': 'Bearer $token'},
     );
 
@@ -657,7 +657,7 @@ class _NoteItemCardState extends State<NoteItemCard> {
     final token = prefs.getString('accessToken');
 
     final response = await http.patch(
-      Uri.parse('http://localhost:8000/pdf/notes/$noteId'),
+      Uri.parse('http://10.0.2.2:8000/pdf/notes/$noteId'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',

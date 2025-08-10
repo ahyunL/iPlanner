@@ -258,7 +258,7 @@ class _SubMainPageState extends State<SubMainPage> {
 
       if (token != null && subjectId != null) {
         final response = await http.delete(
-          Uri.parse('http://localhost:8000/subject/$subjectId'),
+          Uri.parse('http://10.0.2.2:8000/subject/$subjectId'),
           headers: {'Authorization': 'Bearer $token'},
         );
 
@@ -294,7 +294,7 @@ class _SubMainPageState extends State<SubMainPage> {
 
       if (token != null) {
         final response = await http.delete(
-          Uri.parse('http://localhost:8000/plan/$planId'),
+          Uri.parse('http://10.0.2.2:8000/plan/$planId'),
           headers: {'Authorization': 'Bearer $token'},
         );
 
@@ -336,7 +336,7 @@ class _SubMainPageState extends State<SubMainPage> {
 
     try {
       final response = await http.post(
-        Uri.parse('http://localhost:8000/plan/schedule'),
+        Uri.parse('http://10.0.2.2:8000/plan/schedule'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token'

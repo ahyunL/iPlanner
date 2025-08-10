@@ -32,6 +32,10 @@ class User(Base):
     #마이페이지 추가 정보 때문에 추가
     profile = relationship("UserProfile", uselist=False, back_populates="user", cascade="all, delete-orphan")
     user_id = Column(Integer, primary_key=True, autoincrement=True)
+    # models/user.py
+    user_type_history = relationship("UserTypeHistory", back_populates="user")
+    # models/user.py (User 클래스 안에)
+    study_daily = relationship("UserStudyDaily", back_populates="user")
 
 
 from models.timer import Timer

@@ -199,7 +199,7 @@ class HomePageState extends State<HomePage> {
   int weeklyMinutes = 0;
   Map<String, int> userStudyTime = {};
 
-  final String baseUrl = 'http://localhost:8000';
+  final String baseUrl = 'http://10.0.2.2:8000';
 
    Future<void> refreshTodayStudyTime() async {
     final prefs = await SharedPreferences.getInstance();
@@ -207,7 +207,7 @@ class HomePageState extends State<HomePage> {
     if (accessToken == null) return;
 
     final response = await http.get(
-      Uri.parse('http://localhost:8000/timer/today'),
+      Uri.parse('http://10.0.2.2:8000/timer/today'),
       headers: {
         'Authorization': 'Bearer $accessToken',
       },
@@ -307,7 +307,38 @@ class HomePageState extends State<HomePage> {
     await fetchTodayTodos();
   }
 
+  // Future<void> toggleComplete(int planId, bool newValue) async {
+  //   final headers = await _headers();
+
+  //   final res = await http.patch(
+  //     Uri.parse('$baseUrl/plan/$planId/complete'),
+  //     headers: headers,
+  //     body: json.encode({"complete": newValue}),
+  //   );
+
+  //   if (res.statusCode == 200) {
+  //     await Provider.of<TodoProvider>(
+  //       navigatorKey.currentContext!,
+  //       listen: false,
+  //     ).fetchTodayTodosGrouped(); 
+
+  //     await fetchTodayTodos();      // 오늘 투두 → 도넛 계산용
+  //     await fetchWeeklyTodos();     // 주간 투두 → UI용
+  //     await fetchCalendarEvents();  // 캘린더 이벤트 반영
+  //     setState(() {});              // 전체 UI 갱신
+
+  //     // 일정 딜레이 후 달성률 백엔드에 저장 25.08.03
+  //     await Future.delayed(const Duration(seconds: 3));
+  //     final percent = _calculateTodayPercent();
+  //     await saveDailyAchievement(percent);
+
+  //   } else {
+  //     print('complete 변경 실패: ${res.statusCode}');
+  //   }
+  // }
+
   Future<void> toggleComplete(int planId, bool newValue) async {
+    print('✅ toggleComplete 진입: planId=$planId, newValue=$newValue');
     final headers = await _headers();
 
     final res = await http.patch(
@@ -316,20 +347,32 @@ class HomePageState extends State<HomePage> {
       body: json.encode({"complete": newValue}),
     );
 
-    if (res.statusCode == 200) {
-      await Provider.of<TodoProvider>(
-        navigatorKey.currentContext!,
-        listen: false,
-      ).fetchTodayTodosGrouped(); 
+    print('🔄 PATCH 응답 상태코드: ${res.statusCode}');
 
-      await fetchTodayTodos();      // 오늘 투두 → 도넛 계산용
-      await fetchWeeklyTodos();     // 주간 투두 → UI용
-      await fetchCalendarEvents();  // 캘린더 이벤트 반영
-      setState(() {});              // 전체 UI 갱신
+    if (res.statusCode == 200) {
+      print('✅ PATCH 성공, 상태 업데이트 중...');
+      await Provider.of<TodoProvider>(navigatorKey.currentContext!, listen: false).fetchTodayTodosGrouped();
+      await fetchTodayTodos();
+      await fetchWeeklyTodos();
+      await fetchCalendarEvents();
+      setState(() {});
+      print('📌 상태 갱신 완료');
+
+      await createDailySummaryIfAbsent(); // 요약 먼저 생성
+      await Future.delayed(const Duration(seconds: 1));
+
+      final percent = _calculateTodayPercent();
+      print('🎯 계산된 오늘 달성률: ${(percent * 100).toStringAsFixed(1)}%');
+
+      await saveDailyAchievement(percent); // 덮어쓰기 방식 저장
+      print('📡 saveDailyAchievement 호출 완료');
     } else {
-      print('complete 변경 실패: ${res.statusCode}');
+      print('❌ complete 변경 실패: ${res.statusCode}');
     }
   }
+
+
+
 
 
 
@@ -948,6 +991,45 @@ Widget _buildTodoAndWeeklySection() {
     );
   }
 
+
+  //25-08-03 추가
+  Future<void> saveDailyAchievement(double achievement) async {
+    final headers = await _headers();
+    final dateStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+
+    final res = await http.post(  // ✅ POST로 변경했는지 확인
+      Uri.parse('$baseUrl/study-daily/achievement'),
+      headers: headers,
+      body: json.encode({
+        'study_date': dateStr,
+        'daily_achievement': (achievement * 100).round(),  // ✅ 소수점 → 정수 %
+      }),
+    );
+
+    if (res.statusCode == 200) {
+      print('🎯 일일 달성률 저장 완료');
+    } else {
+      print('❌ 달성률 저장 실패: ${res.statusCode}');
+    }
+  }
+
+
+
+  Future<void> createDailySummaryIfAbsent() async {
+    final headers = await _headers();
+    final dateStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+
+    final res = await http.post(
+      Uri.parse('$baseUrl/study-daily/auto?date=$dateStr'),
+      headers: headers,
+    );
+
+    if (res.statusCode == 200) {
+      print('✅ 요약 생성 완료');
+    } else {
+      print('❌ 요약 생성 실패: ${res.statusCode}');
+    }
+  }
 
 
  }

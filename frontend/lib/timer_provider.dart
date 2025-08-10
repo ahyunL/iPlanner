@@ -43,13 +43,13 @@ class TimerProvider extends ChangeNotifier {
     if (_stopwatch.isRunning) return;
 
     final prefs = await SharedPreferences.getInstance();
-    final now = DateTime.now();
+    final now = DateTime.now().toLocal();;
 
     _sessionStartTime = now;
 
-    prefs.setString('sessionStart', now.toIso8601String());
+    prefs.setString('sessionStart', now.toLocal().toIso8601String());
     prefs.setInt('elapsedBefore', _lastElapsed.inMinutes);
-    prefs.setString('sessionDate', now.toIso8601String().split('T')[0]);
+    prefs.setString('sessionDate', now.toLocal().toIso8601String().split('T')[0]);
 
     _stopwatch.start();
     print('타이머 시작됨: ${_stopwatch.elapsed}');
@@ -71,7 +71,7 @@ class TimerProvider extends ChangeNotifier {
     final sessionDate = prefs.getString('sessionDate');
     final elapsedBefore = prefs.getInt('elapsedBefore') ?? 0;
 
-    final todayStr = DateTime.now().toIso8601String().split('T')[0];
+    final todayStr = DateTime.now().toLocal().toIso8601String().split('T')[0];
 
     // 1. 날짜 변경 시 서버 저장 후 초기화
     if (sessionDate != null && sessionDate != todayStr) {
@@ -97,7 +97,7 @@ class TimerProvider extends ChangeNotifier {
     final accessToken = prefs.getString('accessToken');
     if (accessToken != null) {
       final response = await http.get(
-        Uri.parse('http://localhost:8000/timer/today'),
+        Uri.parse('http://10.0.2.2:8000/timer/today'),
         headers: {
           'Authorization': 'Bearer $accessToken',
         },
@@ -117,7 +117,7 @@ class TimerProvider extends ChangeNotifier {
     // 3. 세션 기록이 있으면 복원 (정지 상태 유지)
     if (sessionStartStr != null) {
       final startTime = DateTime.parse(sessionStartStr);
-      final now = DateTime.now();
+      final now = DateTime.now().toLocal();
       final diff = now.difference(startTime);
 
       _elapsed = _lastElapsed;  // 이 시점에서 elapsed는 DB+로컬 값
@@ -144,10 +144,10 @@ class TimerProvider extends ChangeNotifier {
     print('pause 함수 진입');
     _stopwatch.stop();
 
-    _sessionEndTime = DateTime.now();
+    _sessionEndTime = DateTime.now().toLocal();
     _timer?.cancel();
 
-    final now = DateTime.now();
+    final now = DateTime.now().toLocal();
     final today = ['월', '화', '수', '목', '금', '토', '일'][now.weekday - 1];
 
     weeklyStudy[today] =
@@ -165,8 +165,8 @@ class TimerProvider extends ChangeNotifier {
       _studySessions.add({
         'study_date': now.toIso8601String().split('T')[0],
         'total_minutes': sessionMinutes,
-        'start_time': _sessionStartTime!.toIso8601String(),
-        'end_time': _sessionEndTime!.toIso8601String(),
+        'start_time': _sessionStartTime!.toLocal().toIso8601String(),
+        'end_time': _sessionEndTime!.toLocal().toIso8601String(),
       });
 
       print('세션 추가됨: ${_studySessions.last}');
@@ -188,7 +188,10 @@ class TimerProvider extends ChangeNotifier {
 
       final timerProvider = Provider.of<TimerProvider>(context, listen: false);
       await timerProvider.loadWeeklyStudyFromServer();
+      
     }
+
+    await fetchSessionsByDate(DateTime.now());
 
     notifyListeners();
   }
@@ -207,7 +210,7 @@ class TimerProvider extends ChangeNotifier {
       print('서버로 보낼 세션: $session');
 
       final response = await http.post(
-        Uri.parse('http://localhost:8000/timer/'),
+        Uri.parse('http://10.0.2.2:8000/timer/'),
         headers: {
           'Authorization': 'Bearer $accessToken',
           'Content-Type': 'application/json',
@@ -230,7 +233,7 @@ class TimerProvider extends ChangeNotifier {
     final accessToken = prefs.getString('accessToken');
     if (accessToken == null) return;
 
-    final url = Uri.parse('http://localhost:8000/timer/weekly-by-day?week_offset=$weekOffset');
+    final url = Uri.parse('http://10.0.2.2:8000/timer/weekly-by-day?week_offset=$weekOffset');
 
     final response = await http.get(
       url,
@@ -284,7 +287,7 @@ class TimerProvider extends ChangeNotifier {
     final dateStr = date.toIso8601String().split('T')[0];
 
     final response = await http.get(
-      Uri.parse('http://localhost:8000/timer/sessions/$dateStr'),
+      Uri.parse('http://10.0.2.2:8000/timer/sessions/$dateStr'),
       headers: {
         'Authorization': 'Bearer $accessToken',
       },

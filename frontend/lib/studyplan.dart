@@ -55,7 +55,7 @@ class _StudyPlanPageState extends State<StudyPlanPage> with TickerProviderStateM
     if (token == null) return;
 
     final response = await http.get(
-      Uri.parse('http://localhost:8000/subject/list'),
+      Uri.parse('http://10.0.2.2:8000/subject/list'),
       headers: {'Authorization': 'Bearer $token'},
     );
 
@@ -75,7 +75,7 @@ class _StudyPlanPageState extends State<StudyPlanPage> with TickerProviderStateM
     if (token == null) return;
 
     final subjectResponse = await http.post(
-      Uri.parse('http://localhost:8000/subject/'),
+      Uri.parse('http://10.0.2.2:8000/subject/'),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
@@ -96,7 +96,7 @@ class _StudyPlanPageState extends State<StudyPlanPage> with TickerProviderStateM
     for (int i = 0; i < studyMaterials.length; i++) {
       final material = studyMaterials[i];
       await http.post(
-        Uri.parse('http://localhost:8000/row-plan/'),
+        Uri.parse('http://10.0.2.2:8000/row-plan/'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -138,7 +138,7 @@ class _StudyPlanPageState extends State<StudyPlanPage> with TickerProviderStateM
     if (token == null) return;
 
     final response = await http.post(
-      Uri.parse('http://localhost:8000/plan/schedule'),
+      Uri.parse('http://10.0.2.2:8000/plan/schedule'),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
@@ -169,7 +169,7 @@ class _StudyPlanPageState extends State<StudyPlanPage> with TickerProviderStateM
     if (token == null) return;
 
     final response = await http.delete(
-      Uri.parse('http://localhost:8000/subject/delete-all'),
+      Uri.parse('http://10.0.2.2:8000/subject/delete-all'),
       headers: {'Authorization': 'Bearer $token'},
     );
 

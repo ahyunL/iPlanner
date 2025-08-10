@@ -30,7 +30,7 @@ class _PasswordCheckPageState extends State<PasswordCheckPage> {
       }
 
       final response = await http.post(
-        Uri.parse('http://localhost:8000/user/verify-password'),
+        Uri.parse('http://10.0.2.2:8000/user/verify-password'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $accessToken',

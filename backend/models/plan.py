@@ -18,3 +18,4 @@ class Plan(Base):
     subject = relationship("Subject", back_populates="plans")
     row_plan = relationship("RowPlan", back_populates="plans")  # 양방향 연결
 
+

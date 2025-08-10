@@ -12,3 +12,5 @@ from .pdf_pages import PdfPage
 from .pdf_annotations import PdfAnnotation
 from .handwriting import Handwriting
 from .user_profile import UserProfile  
+from .user_type_history import UserTypeHistory
+from .user_study_daily import UserStudyDaily

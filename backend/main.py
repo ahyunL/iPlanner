@@ -8,7 +8,9 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.routing import APIRoute
 
 # 프로젝트 루트에서 필요한 라우터 모드로 갱신
-from routers import planner, row_plan, auth, user, subject, plan, handwriting, timer, pdf
+from routers import planner, row_plan, auth, user, subject, plan, handwriting, timer, pdf, user_type_router,user_study_router
+
+
 
 app = FastAPI()
 
@@ -31,6 +33,8 @@ app.include_router(plan.router, prefix="/plan", tags=["Plan"])             # 학
 app.include_router(timer.router, prefix="/timer", tags=["Timer"])
       # 계획 저장/조회
 app.include_router(pdf.router, prefix="/pdf", tags=["PDF"])     # pdf 필기기
+app.include_router(user_type_router.router, prefix="/user-type", tags=["UserType"]) #유저 학습유형 정보
+app.include_router(user_study_router.router, tags=["StudyDaily"]) # 학습자의 공부유형 나누기 전 데이터 
 app.mount("/static", StaticFiles(directory="static"), name="static")  
 
 app.include_router(handwriting.router, prefix="/handwriting", tags=["Handwriting"])  # 필기

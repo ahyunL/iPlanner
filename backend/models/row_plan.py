@@ -36,5 +36,8 @@ class RowPlan(Base):
     plan_id = Column(Integer, ForeignKey("plan.plan_id"), nullable=True)
     user = relationship("User", back_populates="row_plans") 
     subject = relationship("Subject", back_populates="row_plans") 
+
     plans = relationship("Plan", back_populates="row_plan")
+
+
 

@@ -150,10 +150,17 @@ class _TimerPageState extends State<TimerPage> {
                         final start = session.startTime;
                         final end = session.endTime;
 
-                        if (start.hour > hour || end.hour < hour) return const SizedBox.shrink();
+                        // if (start.hour > hour || end.hour < hour) return const SizedBox.shrink();
 
-                        final startMinute = start.hour == hour ? start.minute : 0;
-                        final endMinute = end.hour == hour ? end.minute : 60;
+                        // final startMinute = start.hour == hour ? start.minute : 0;
+                        // final endMinute = end.hour == hour ? end.minute : 60;
+                        if (start == null || end == null) return const SizedBox.shrink();
+
+                        if (start!.hour > hour || end!.hour < hour) return const SizedBox.shrink();
+
+                        final startMinute = start!.hour == hour ? start!.minute : 0;
+                        final endMinute = end!.hour == hour ? end!.minute : 60;
+
 
                         final left = (startMinute / 10) * cellWidth;
                         final width = ((endMinute - startMinute) / 10) * cellWidth;

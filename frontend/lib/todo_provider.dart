@@ -33,7 +33,7 @@ class TodoProvider with ChangeNotifier {
     final todayStr = "${today.year.toString().padLeft(4, '0')}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}";
 
     final response = await http.get(
-      Uri.parse("http://localhost:8000/plan/by-date-with-subject?date=$todayStr"),
+      Uri.parse("http://10.0.2.2:8000/plan/by-date-with-subject?date=$todayStr"),
       headers: {'Authorization': 'Bearer $token'},
     );
 
@@ -61,7 +61,7 @@ class TodoProvider with ChangeNotifier {
     final token = prefs.getString('accessToken');
     if (token == null) return;
 
-    final url = Uri.parse("http://localhost:8000/plan/$planId/complete");
+    final url = Uri.parse("http://10.0.2.2:8000/plan/$planId/complete");
     final response = await http.patch(
       url,
       headers: {
@@ -90,7 +90,7 @@ class TodoProvider with ChangeNotifier {
     }
 
     final response = await http.get(
-      Uri.parse("http://localhost:8000/plan/weekly-grouped"),
+      Uri.parse("http://10.0.2.2:8000/plan/weekly-grouped"),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
@@ -146,7 +146,7 @@ class TodoProvider with ChangeNotifier {
       final planId = planIdMap[subject]?[index];
 
       if (token != null && planId != null) {
-        final url = Uri.parse("http://localhost:8000/plan/$planId/complete");
+        final url = Uri.parse("http://10.0.2.2:8000/plan/$planId/complete");
         await http.patch(
           url,
           headers: {

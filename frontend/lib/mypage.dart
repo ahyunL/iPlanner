@@ -286,7 +286,7 @@ Widget _buildStudyTimeSection() {
       if (accessToken == null) return;
 
       final response = await http.get(
-        Uri.parse('http://localhost:8000/user/profile'),
+        Uri.parse('http://10.0.2.2:8000/user/profile'),
         headers: {
           'Authorization': 'Bearer $accessToken',
           'Content-Type': 'application/json; charset=UTF-8',

@@ -87,6 +87,64 @@ def save_row_plans_to_db(user_data: dict):
     finally:
         db.close()
 
+# # 계획(plan) 생성 및 저장
+# def generate_and_save_plans(user_id: int, subject_id: int):
+#     db = pymysql.connect(
+#         host='localhost',
+#         user='root',
+#         password='1204',
+#         database='yuminsu',
+#         charset='utf8mb4',
+#         cursorclass=pymysql.cursors.DictCursor
+#     )
+#     try:
+#         with db.cursor() as cursor:
+#             cursor.execute("""
+#                 SELECT * FROM row_plan
+#                 WHERE user_id = %s AND subject_id = %s
+#                 ORDER BY ranking ASC
+#             """, (user_id, subject_id))
+#             row_plans = cursor.fetchall()
+
+#         todo_items = []
+#         for plan in row_plans:
+#             tasks = expand_row_plan_name(plan["row_plan_name"])
+#             for r in range(1, plan["repetition"] + 1):
+#                 for t in tasks:
+#                     todo_items.append({
+#                         "user_id": user_id,
+#                         "subject_id": subject_id,
+#                         "plan_name": f"{plan['row_plan_name']} - {r}회차 {t}",
+#                         "complete": False,
+#                         "plan_time": plan.get("plan_time", 60),
+#  # 기본 학습 시간
+#                         "plan_date": None  # 날짜 배정 전
+#                     })
+
+#         with db.cursor() as cursor:
+#             for item in todo_items:
+#                 cursor.execute("""
+#                     INSERT INTO plan (user_id, subject_id, plan_name, complete, plan_time, plan_date)
+#                     VALUES (%s, %s, %s, %s, %s, %s)
+#                 """, (
+#                     item["user_id"],
+#                     item["subject_id"],
+#                     item["plan_name"],
+#                     item["complete"],
+#                     item["plan_time"],
+#                     item["plan_date"]
+#                 ))
+
+#         db.commit()
+#         print(f"plan {len(todo_items)}개 저장 완료!")
+
+#     except Exception as e:
+#         print("계획 생성 또는 저장 오류:", e)
+#         print(traceback.format_exc())
+#     finally:
+#         db.close()
+
+
 # 계획(plan) 생성 및 저장
 def generate_and_save_plans(user_id: int, subject_id: int):
     db = pymysql.connect(
@@ -115,10 +173,10 @@ def generate_and_save_plans(user_id: int, subject_id: int):
                         "user_id": user_id,
                         "subject_id": subject_id,
                         "plan_name": f"{plan['row_plan_name']} - {r}회차 {t}",
+                        "original_name": plan['row_plan_name'],  # 연결용 원본 이름 저장
                         "complete": False,
                         "plan_time": plan.get("plan_time", 60),
- # 기본 학습 시간
-                        "plan_date": None  # 날짜 배정 전
+                        "plan_date": None
                     })
 
         with db.cursor() as cursor:
@@ -138,11 +196,37 @@ def generate_and_save_plans(user_id: int, subject_id: int):
         db.commit()
         print(f"plan {len(todo_items)}개 저장 완료!")
 
+        # ✅ plan_id를 다시 조회해서 row_plan에 연결
+        with db.cursor() as cursor:
+            for item in todo_items:
+                cursor.execute("""
+                    SELECT plan_id FROM plan
+                    WHERE user_id = %s AND subject_id = %s AND plan_name = %s
+                """, (item["user_id"], item["subject_id"], item["plan_name"]))
+                result = cursor.fetchone()
+
+                if result:
+                    plan_id = result["plan_id"]
+                    cursor.execute("""
+                        UPDATE row_plan
+                        SET plan_id = %s
+                        WHERE user_id = %s AND subject_id = %s AND row_plan_name = %s
+                    """, (
+                        plan_id,
+                        item["user_id"],
+                        item["subject_id"],
+                        item["original_name"]
+                    ))
+
+        db.commit()
+        print("row_plan.plan_id 연결 완료!")
+
     except Exception as e:
         print("계획 생성 또는 저장 오류:", e)
         print(traceback.format_exc())
     finally:
         db.close()
+
 
 # plan 테이블에서 ToDoItem 리스트 반환
 def create_plan_list_for_response(user_id: int, subject_id: int):
