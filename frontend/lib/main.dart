@@ -1,4 +1,4 @@
-
+import 'env.dart'; 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -18,9 +18,22 @@ import 'mypage.dart';
 import 'timer.dart'; 
 import 'timer_provider.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'study_type_page.dart'; //아현 임포트 추가 
+import 'data/notification_api.dart'; // 경로 맞게
+import 'package:flutter/foundation.dart'; // ← 추가
+// 알림 공용 서비스 & 전체보기 라우트
+import 'notification_service.dart';
+import 'open_notifications.dart';
+import 'app_scaffold.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'env.dart'; 
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  // .env 불러오기
+  await dotenv.load(fileName: 'assets/.env');
+
   runApp(
     // 변경 후
     MultiProvider(
@@ -33,6 +46,8 @@ void main() {
     ),
   );
 }
+
+
 class StudyApp extends StatelessWidget {
   const StudyApp({super.key});
 
@@ -43,14 +58,20 @@ class StudyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       initialRoute: '/',
       routes: {
-        '/': (context) => const LoginPage(),
-        '/folder': (context) => FolderHomePage(),
-        '/home': (context) => const PageViewContainer(),
-        '/studyplan': (context) => const StudyPlanPage(),
+        // '/': (context) => const LoginPage(),
+        // '/folder': (context) => FolderHomePage(),
+        // // '/home': (context) => const PageViewContainer(), 수민언니거 병합
+        // '/home': (context) => const AppScaffold(),
+        // '/studyplan': (context) => const StudyPlanPage(),
 
-        '/submain': (context) => const SubMainPage(), // 서브메인
-        '/mypage': (context) => const MyPage(),       // 마이페이지
-        '/timer': (context) => const TimerPage(),     // 타이머
+        // '/submain': (context) => const SubMainPage(), // 서브메인
+        // '/mypage': (context) => const MyPage(),       // 마이페이지
+        // '/timer': (context) => const TimerPage(),     // 타이머
+        // '/login': (context) => const LoginPage(),  // 로그인 페이지 등록
+        '/': (context) => const LoginPage(),
+        '/home': (context) => const AppScaffold(),
+        '/studyplan': (context) => const StudyPlanPage(), // 세부 화면만 남겨둠
+        '/login': (context) => const LoginPage(),
       },
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
@@ -187,6 +208,15 @@ class HomePage extends StatefulWidget {
 }
 
 class HomePageState extends State<HomePage> {
+
+ @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    Provider.of<TodoProvider>(context, listen: false).fetchTodosFromDB();
+    Provider.of<TodoProvider>(context, listen: false).fetchTodayTodosGrouped();
+  }
+  Map<String, List<Map<String, dynamic>>> subjectGroups = {};
+
   List<Map<String, dynamic>> todayTodos = [];
   Map<String, List<Map<String, dynamic>>> weeklyTodos = {};
   Map<String, List<bool>> todoChecked = {};
@@ -199,26 +229,76 @@ class HomePageState extends State<HomePage> {
   int weeklyMinutes = 0;
   Map<String, int> userStudyTime = {};
 
-  final String baseUrl = 'http://10.0.2.2:8000';
+  final String baseUrl = '${Env.baseUrl}';
 
-   Future<void> refreshTodayStudyTime() async {
-    final prefs = await SharedPreferences.getInstance();
-    final accessToken = prefs.getString('accessToken');
-    if (accessToken == null) return;
+  // ───────── 알림(팝오버+배지) 상태 ─────────
+  int _unreadCount = 0;
+  final LayerLink _bellLink = LayerLink();
+  OverlayEntry? _notifOverlay;
+  bool _isPopoverOpen = false;
 
-    final response = await http.get(
-      Uri.parse('http://10.0.2.2:8000/timer/today'),
-      headers: {
-        'Authorization': 'Bearer $accessToken',
+  void _removeNotifPopover() {
+    _notifOverlay?.remove();
+    _notifOverlay = null;
+  }
+
+  void _toggleNotifPopover() {
+    if (_isPopoverOpen) {
+      _removeNotifPopover();
+      setState(() => _isPopoverOpen = false);
+      return;
+    }
+    _notifOverlay = _buildNotifPopover();
+    Overlay.of(context).insert(_notifOverlay!);
+    setState(() => _isPopoverOpen = true);
+
+    NotificationService.instance.fetchNotifications();
+  }
+
+  OverlayEntry _buildNotifPopover() {
+    return OverlayEntry(
+      builder: (context) {
+        return Stack(
+          children: [
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onTap: () {
+                  _removeNotifPopover();
+                  setState(() => _isPopoverOpen = false);
+                },
+              ),
+            ),
+            CompositedTransformFollower(
+              link: _bellLink,
+              showWhenUnlinked: false,
+              offset: const Offset(-340, 44),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  maxWidth: 360,
+                  maxHeight: 560,
+                ),
+                child: Material(
+                  elevation: 12,
+                  borderRadius: BorderRadius.circular(16),
+                  clipBehavior: Clip.antiAlias,
+                  child: _NotificationsPopoverBody(
+                    hostContext: context, // ✅ 페이지 컨텍스트 전달
+                    onClose: (bool refresh) async {
+                      _removeNotifPopover();
+                      setState(() => _isPopoverOpen = false);
+                      if (refresh) {
+                        await NotificationService.instance.fetchUnreadCount();
+                      }
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
       },
     );
-
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      setState(() {
-        todayMinutes = data['today_minutes']; // 도넛에 쓰이는 값
-      });
-    }
   }
 
 
@@ -227,20 +307,179 @@ class HomePageState extends State<HomePage> {
     super.initState();
     fetchAllData();
 
-    // TodoProvider 오늘 투두 그룹핑
-    Future.microtask(() {
-      Provider.of<TodoProvider>(context, listen: false).fetchTodayTodosGrouped();
+    NotificationService.instance.fetchUnreadCount();
+    _unreadCount = NotificationService.instance.unreadCount.value;
+    NotificationService.instance.unreadCount.addListener(_onUnreadChanged);
 
-      // TimerProvider에서 도넛용 공부 시간 로딩
-      Provider.of<TimerProvider>(context, listen: false).loadWeeklyStudyFromServer();
+    Future.microtask(() {
+      Provider.of<TodoProvider>(
+        context,
+        listen: false,
+      ).fetchTodayTodosGrouped();
+      Provider.of<TimerProvider>(
+        context,
+        listen: false,
+      ).loadWeeklyStudyFromServer();
     });
   }
+
+
+  void _onUnreadChanged() {
+    if (!mounted) return;
+    setState(() {
+      _unreadCount = NotificationService.instance.unreadCount.value;
+    });
+  }
+
+  @override
+  void dispose() {
+    NotificationService.instance.unreadCount.removeListener(_onUnreadChanged);
+    _removeNotifPopover();
+    super.dispose();
+  }
+
+
+  void _showAddPersonalScheduleDialog() {
+    final TextEditingController titleController = TextEditingController();
+    DateTime selectedDate = _focusedDay;
+    Color selectedColor = Colors.blue;
+    if (!mounted) return;  // ✅ 안전성 확보
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('개인 일정 추가'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: titleController,
+                decoration: const InputDecoration(labelText: '일정 이름'),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  const Text('날짜:'),
+                  const SizedBox(width: 10),
+                  TextButton(
+                    onPressed: () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: selectedDate,
+                        firstDate: DateTime.now().subtract(const Duration(days: 365)),
+                        lastDate: DateTime.now().add(const Duration(days: 365)),
+                      );
+                      if (picked != null) {
+                        setState(() {
+                          selectedDate = picked;
+                        });
+                      }
+                    },
+                    child: Text(DateFormat('yyyy-MM-dd').format(selectedDate)),
+                  )
+                ],
+              ),
+              Row(
+                children: [
+                  const Text('색상:'),
+                  const SizedBox(width: 10),
+                  GestureDetector(
+                    onTap: () {
+                      // 나중에 색상 선택 팝업으로 확장 가능
+                      setState(() {
+                        selectedColor = Colors.purple; // 예시
+                      });
+                    },
+                    child: Container(
+                      width: 24,
+                      height: 24,
+                      decoration: BoxDecoration(
+                        color: selectedColor,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+                ],
+              )
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('취소'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                _submitPersonalSchedule(
+                  titleController.text,
+                  selectedDate,
+                  selectedColor,
+                );
+                Navigator.pop(context);
+              },
+              child: const Text('추가'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+
+  Future<void> _submitPersonalSchedule(String title, DateTime date, Color color) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('accessToken');
+    if (token == null) return;
+
+    final res = await http.post(
+      Uri.parse('$baseUrl/personal-schedule/'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: json.encode({
+        'title': title,
+        'date': DateFormat('yyyy-MM-dd').format(date),
+        'color': '#${color.value.toRadixString(16).padLeft(8, '0').substring(2)}',  // ARGB → RGB hex
+      }),
+    );
+
+    if (res.statusCode == 200 || res.statusCode == 201) {
+      await fetchCalendarEvents(); // 캘린더 갱신
+      await fetchTodayTodos();     // 오늘 할 일도 갱신
+      setState(() {});
+    } else {
+      //print("일정 저장 실패: ${res.statusCode}");
+    }
+  }
+
+  Future<void> refreshTodayStudyTime() async {
+    final prefs = await SharedPreferences.getInstance();
+    final accessToken = prefs.getString('accessToken');
+    if (accessToken == null) return;
+
+    final response = await http.get(
+      // 변경
+      Uri.parse('$baseUrl/timer/today'),
+      headers: {'Authorization': 'Bearer $accessToken'},
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      setState(() {
+        todayMinutes = data['today_minutes'];
+      });
+    }
+  }
+
+
 
   Future<Map<String, String>> _headers() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('accessToken');
     if (token == null || token.isEmpty) {
-      print('accessToken 없음!');
+      //print('accessToken 없음!');
       return {
         'Content-Type': 'application/json',
       };
@@ -260,82 +499,117 @@ class HomePageState extends State<HomePage> {
     await refreshTodayStudyTime();
   }
 
-  Future<void> fetchTodayTodos() async {
-    final headers = await _headers();
-    final res = await http.get(Uri.parse('$baseUrl/plan/today?date=${DateFormat('yyyy-MM-dd').format(DateTime.now())}'), headers: headers);
-    if (res.statusCode == 200) {
-      final decoded = utf8.decode(res.bodyBytes); // UTF-8 명시적 디코딩
-      final List data = json.decode(decoded);
-      setState(() {
-        todayTodos = data.map((e) => e as Map<String, dynamic>).toList();
-      });
-    } else {
-      print('fetchTodayTodos 실패: ${res.statusCode}');
-    }
+Future<void> fetchTodayTodos() async {
+  final headers = await _headers();
+  final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+  print('[TODAY] $today');
+
+  // 1. 학습 계획 불러오기
+  final planRes = await http.get(Uri.parse('$baseUrl/plan/today?date=$today'), headers: headers);
+  List<Map<String, dynamic>> plans = [];
+
+  print('[Plan StatusCode] ${planRes.statusCode}');
+  if (planRes.statusCode == 200) {
+    final decoded = utf8.decode(planRes.bodyBytes);
+    final List data = json.decode(decoded);
+    plans = data.map((e) => e as Map<String, dynamic>).toList();
+    print('[Plan Data] ${plans.length}건: $plans');
+  } else {
+    print('[Plan Error] ${planRes.body}');
   }
 
-  Future<void> fetchWeeklyTodos() async {
-    final headers = await _headers();
-    final now = DateTime.now();
-    final start = now.subtract(Duration(days: now.weekday - 1));
-    final end = start.add(const Duration(days: 6));
-    final res = await http.get(Uri.parse('$baseUrl/plan/weekly?start=${DateFormat('yyyy-MM-dd').format(start)}&end=${DateFormat('yyyy-MM-dd').format(end)}'), headers: headers);
-    if (res.statusCode == 200) {
-      final decoded = utf8.decode(res.bodyBytes); // UTF-8 명시적 디코딩
-      final List data = json.decode(decoded);
-      final Map<String, List<Map<String, dynamic>>> grouped = {};
-      for (var item in data) {
-        final subject = item['subject'] ?? '기타';
-        grouped.putIfAbsent(subject, () => []).add(item);
-      }
-      setState(() {
-        weeklyTodos = grouped;
-        todoChecked = {
-          for (var entry in grouped.entries)
-            entry.key: List<bool>.generate(entry.value.length, (i) => entry.value[i]['complete'] ?? false),
-        };
-      });
-    } else {
-      print('fetchWeeklyTodos 실패: ${res.statusCode}');
-    }
+  // 2. 개인 일정 불러오기
+  final personalRes = await http.get(Uri.parse('$baseUrl/personal-schedule/today'), headers: headers);
+  List<Map<String, dynamic>> personals = [];
+
+  print('[Personal StatusCode] ${personalRes.statusCode}');
+  if (personalRes.statusCode == 200) {
+    final decoded = utf8.decode(personalRes.bodyBytes);
+    final List data = json.decode(decoded);
+    print('[Raw Personal Data] $data');
+
+    personals = data.map((e) => {
+      'plan_name': e['title'],
+      'plan_id': null,
+      'complete': false,
+      'plan_time': 0,
+      'subject': '📌 개인 일정',
+    }).toList();
+
+    print('[Personal Todos] ${personals.length}건: $personals');
+  } else {
+    print('[Personal Error] ${personalRes.body}');
   }
+
+  // 3. 병합 및 subject 확인
+
+// ✅ 병합된 all 리스트 기준으로 그룹핑
+// 1. 개인 일정은 리스트 형태로 보관
+final personalTodos = [...personals]; // subject: '📌 개인 일정'
+
+// 2. 플랜은 과목별 그룹핑
+final groupedPlans = <String, List<Map<String, dynamic>>>{};
+
+for (var plan in plans) {
+final subject = plan['subject'] ?? plan['subject_name'] ?? '기타';
+  groupedPlans.putIfAbsent(subject, () => []).add(plan);
+}
+
+// 3. 전체 todayTodos는 개인 + 플랜을 시간순으로 정렬하거나 단순 병합
+final all = [...personalTodos, ...plans]; // 필요 시 전체 순서도 관리 가능
+
+// ✅ 상태 반영
+setState(() {
+  todayTodos = all;                  // 도넛 계산용 (flat list)
+  subjectGroups = groupedPlans;     // UI 출력용 (과목별 그룹핑만)
+});
+
+}
+
+
+    Future<void> fetchWeeklyTodos() async {
+      final headers = await _headers();
+      final now = DateTime.now();
+      final start = now;
+      final end = now.add(const Duration(days: 6));
+      final res = await http.get(
+        Uri.parse(
+          '$baseUrl/plan/weekly?start=${DateFormat('yyyy-MM-dd').format(start)}&end=${DateFormat('yyyy-MM-dd').format(end)}',
+        ),
+        headers: headers,
+      );
+      if (res.statusCode == 200) {
+        final decoded = utf8.decode(res.bodyBytes);
+        final List data = json.decode(decoded);
+        final Map<String, List<Map<String, dynamic>>> grouped = {};
+        for (var item in data) {
+          final subject = item['subject'] ?? '기타';
+          grouped.putIfAbsent(subject, () => []).add(item);
+        }
+        setState(() {
+          weeklyTodos = grouped;
+          todoChecked = {
+            for (var entry in grouped.entries)
+              entry.key: List<bool>.generate(
+                entry.value.length,
+                (i) => entry.value[i]['complete'] ?? false,
+              ),
+          };
+        });
+      }
+    }
 
   Future<void> markComplete(int planId) async {
     final headers = await _headers();
-    await http.patch(Uri.parse('$baseUrl/plan/$planId/complete'), headers: headers);
+    await http.patch(
+      Uri.parse('$baseUrl/plan/$planId/complete'),
+      headers: headers,
+    );
     await fetchWeeklyTodos();
     await fetchTodayTodos();
   }
 
-  // Future<void> toggleComplete(int planId, bool newValue) async {
-  //   final headers = await _headers();
 
-  //   final res = await http.patch(
-  //     Uri.parse('$baseUrl/plan/$planId/complete'),
-  //     headers: headers,
-  //     body: json.encode({"complete": newValue}),
-  //   );
-
-  //   if (res.statusCode == 200) {
-  //     await Provider.of<TodoProvider>(
-  //       navigatorKey.currentContext!,
-  //       listen: false,
-  //     ).fetchTodayTodosGrouped(); 
-
-  //     await fetchTodayTodos();      // 오늘 투두 → 도넛 계산용
-  //     await fetchWeeklyTodos();     // 주간 투두 → UI용
-  //     await fetchCalendarEvents();  // 캘린더 이벤트 반영
-  //     setState(() {});              // 전체 UI 갱신
-
-  //     // 일정 딜레이 후 달성률 백엔드에 저장 25.08.03
-  //     await Future.delayed(const Duration(seconds: 3));
-  //     final percent = _calculateTodayPercent();
-  //     await saveDailyAchievement(percent);
-
-  //   } else {
-  //     print('complete 변경 실패: ${res.statusCode}');
-  //   }
-  // }
 
   Future<void> toggleComplete(int planId, bool newValue) async {
     print('✅ toggleComplete 진입: planId=$planId, newValue=$newValue');
@@ -372,17 +646,18 @@ class HomePageState extends State<HomePage> {
   }
 
 
-
-
-
-
   Future<void> fetchTimers() async {
     final headers = await _headers();
-    final todayRes = await http.get(Uri.parse('$baseUrl/timer/today'), headers: headers);
-    final weeklyRes = await http.get(Uri.parse('$baseUrl/timer/weekly'), headers: headers);
+    final todayRes = await http.get(
+      Uri.parse('$baseUrl/timer/today'),
+      headers: headers,
+    );
+    final weeklyRes = await http.get(
+      Uri.parse('$baseUrl/timer/weekly'),
+      headers: headers,
+    );
 
     if (todayRes.statusCode == 200 && weeklyRes.statusCode == 200) {
-
       final todayDecoded = json.decode(utf8.decode(todayRes.bodyBytes));
       final weeklyDecoded = json.decode(utf8.decode(weeklyRes.bodyBytes));
 
@@ -390,24 +665,23 @@ class HomePageState extends State<HomePage> {
         todayMinutes = todayDecoded['today_minutes'] ?? 0;
         weeklyMinutes = weeklyDecoded['weekly_minutes'] ?? 0;
       });
-    } else {
-      print('fetchTimers 실패: ${todayRes.statusCode}, ${weeklyRes.statusCode}');
     }
-}
-
+  }
 
   Future<void> fetchUserStudyTime() async {
     final headers = await _headers();
-    final res = await http.get(Uri.parse('$baseUrl/user/study-time'), headers: headers);
+    final res = await http.get(
+      Uri.parse('$baseUrl/user/study-time'),
+      headers: headers,
+    );
     if (res.statusCode == 200) {
-    final decoded = utf8.decode(res.bodyBytes);
+      final decoded = utf8.decode(res.bodyBytes);
       setState(() {
         userStudyTime = Map<String, int>.from(json.decode(decoded));
       });
-    } else {
-      print('fetchUserStudyTime 실패: ${res.statusCode}');
     }
   }
+
 
 
 
@@ -417,10 +691,8 @@ class HomePageState extends State<HomePage> {
 
     final year = _focusedDay.year;
     final month = _focusedDay.month;
-    final firstDay = DateTime(year, month, 1);
-    final lastDay = DateTime(year, month + 1, 0); // 마지막 날 자동 계산
+    final lastDay = DateTime(year, month + 1, 0);
 
-    // 월 전체 날짜 생성
     final List<DateTime> allDatesInMonth = List.generate(
       lastDay.day,
       (i) => DateTime.utc(year, month, i + 1),
@@ -443,15 +715,14 @@ class HomePageState extends State<HomePage> {
 
         if (todos.isNotEmpty) {
           final dateKey = DateTime.utc(date.year, date.month, date.day);
-
-          events[dateKey] = todos
-              .map((e) => '${e['subject'] ?? '무제'}: ${e['plan_name'] ?? '무제'}')
-              .toList();
-
+          events[dateKey] =
+              todos
+                  .map(
+                    (e) => '${e['subject'] ?? '무제'}: ${e['plan_name'] ?? '무제'}',
+                  )
+                  .toList();
           eventDataMap[dateKey] = todos;
         }
-      } else {
-        print(' [$formattedDate] 이벤트 조회 실패: ${res.statusCode}');
       }
     }
 
@@ -463,11 +734,56 @@ class HomePageState extends State<HomePage> {
 
 
 
-
+  // ======================== UI ========================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Study Manager')),
+      // appBar: AppBar(
+      //   //title: const Text('Study Manager'),
+      //   actions: [
+      //     Stack(
+      //       clipBehavior: Clip.none,
+      //       children: [
+      //         CompositedTransformTarget(
+      //           link: _bellLink,
+      //           child: IconButton(
+      //             icon: Icon(
+      //               _unreadCount > 0
+      //                   ? Icons.notifications
+      //                   : Icons.notifications_none,
+      //               color: const Color(0xFF004377),
+      //             ),
+      //             onPressed: _toggleNotifPopover,
+      //             tooltip: '알림',
+      //           ),
+      //         ),
+      //         if (_unreadCount > 0)
+      //           Positioned(
+      //             right: 6,
+      //             top: 6,
+      //             child: Container(
+      //               padding: const EdgeInsets.symmetric(
+      //                 horizontal: 6,
+      //                 vertical: 2,
+      //               ),
+      //               decoration: BoxDecoration(
+      //                 color: Colors.redAccent,
+      //                 borderRadius: BorderRadius.circular(10),
+      //               ),
+      //               child: Text(
+      //                 _unreadCount > 99 ? '99+' : '$_unreadCount',
+      //                 style: const TextStyle(
+      //                   color: Colors.white,
+      //                   fontSize: 11,
+      //                   fontWeight: FontWeight.bold,
+      //                 ),
+      //               ),
+      //             ),
+      //           ),
+      //       ],
+      //     ),
+      //   ],
+      // ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -475,10 +791,25 @@ class HomePageState extends State<HomePage> {
           children: [
             _buildTodoAndWeeklySection(),
             const SizedBox(height: 20),
-            _buildTodoCard(
-              title: "📅 캘린더",
-              child: _buildCalendar(),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  "📅 캘린더",
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                TextButton.icon(
+                  onPressed: _showAddPersonalScheduleDialog,
+                  icon: const Icon(Icons.add_circle_outline, size: 18),
+                  label: const Text(
+                    "개인일정 추가",
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                  ),
+                ),
+              ],
             ),
+            const SizedBox(height: 12),
+            _buildTodoCard(title: ' ', child: _buildCalendar()),
           ],
         ),
       ),
@@ -488,7 +819,7 @@ class HomePageState extends State<HomePage> {
 
 
 
-
+ // ======= 나머지 UI/로직(변경 없음) =======
   void _showFullTodoPopup(BuildContext context, DateTime day, List<Map<String, dynamic>> initialTodos) {
     showModalBottomSheet(
       context: context,
@@ -684,7 +1015,6 @@ class HomePageState extends State<HomePage> {
   }
 
   
-
 Widget _buildTodoAndWeeklySection() {
   return Row(
     crossAxisAlignment: CrossAxisAlignment.start,
@@ -696,34 +1026,41 @@ Widget _buildTodoAndWeeklySection() {
           children: [
             _buildTodoCard(
               title: "오늘 할 일",
-              child: Consumer<TodoProvider>(
-                builder: (context, todoProvider, _) {
-                  final grouped = todoProvider.todayTodosGrouped;
-
-                  if (grouped.isEmpty) {
+              child: Builder(
+                builder: (context) {
+                  if (todayTodos.isEmpty && subjectGroups.isEmpty) {
                     return const SizedBox(
-                      height: 100, // 주간 카드와 동일한 높이로 맞춤
+                      height: 100,
                       child: Center(
-                        child: Text(
-                          "오늘은 계획된 Todo가 없습니다!",
-                          style: TextStyle(fontSize: 14),
-                        ),
+                        child: Text("오늘은 계획된 Todo가 없습니다!", style: TextStyle(fontSize: 14)),
                       ),
                     );
                   }
 
                   return Column(
-                    children: grouped.entries.map(
-                      (entry) => ExpansionTile(
-                        title: Text(entry.key, style: const TextStyle(fontWeight: FontWeight.bold)),
-                        children: entry.value.map((todo) => _buildStyledTodoTile(todo)).toList(),
-                      ),
-                    ).toList(),
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // ✅ 1. 개인 일정만 먼저 출력
+                      ...todayTodos
+                          .where((todo) => todo['subject'] == '📌 개인 일정')
+                          .map((todo) => _buildStyledTodoTile(todo)),
+
+                      const SizedBox(height: 12),
+
+                      // ✅ 2. 과목별 ExpansionTile 출력
+                      ...subjectGroups.entries.map((entry) {
+                        return ExpansionTile(
+                          title: Text(entry.key, style: const TextStyle(fontWeight: FontWeight.bold)),
+                          children: entry.value
+                              .map((todo) => _buildStyledTodoTile(todo))
+                              .toList(),
+                        );
+                      }).toList(),
+                    ],
                   );
                 },
               ),
             ),
-
 
             const SizedBox(height: 20),
             _buildTodoCard(
@@ -805,8 +1142,8 @@ Widget _buildTodoAndWeeklySection() {
 
 //현재는 계획당 시간 가중치를 두고 퍼센트 계산 중인데, 이게 별로이면, 나중에 수정 가능!
   double _calculateTodayPercent() {
-    print('todayTodos length: ${todayTodos.length}');
-    print('todayTodos: $todayTodos');
+    //print('todayTodos length: ${todayTodos.length}');
+    //print('todayTodos: $todayTodos');
 
     final totalPlannedTime = todayTodos
         .map((todo) => todo['plan_time'] ?? 0)
@@ -817,8 +1154,8 @@ Widget _buildTodoAndWeeklySection() {
         .map((todo) => todo['plan_time'] ?? 0)
         .fold<int>(0, (a, b) => a + (b as num).toInt());
 
-    print('totalPlannedTime: $totalPlannedTime');
-    print('completedTime: $completedTime');
+    //print('totalPlannedTime: $totalPlannedTime');
+    //print('completedTime: $completedTime');
 
     if (totalPlannedTime == 0) return 0.0;
 
@@ -835,7 +1172,7 @@ Widget _buildTodoAndWeeklySection() {
         v == true || v == 1 || v == '1' || v == 'true';
 
     for (var subject in weeklyTodos.entries) {
-      print('Subject: ${subject.key}, Todos: ${subject.value}');
+      //print('Subject: ${subject.key}, Todos: ${subject.value}');
 
       for (var todo in subject.value) {
         final rawTime = todo['plan_time'] ?? 0;
@@ -847,8 +1184,8 @@ Widget _buildTodoAndWeeklySection() {
       }
     }
 
-    print('Weekly totalPlannedTime: $totalPlannedTime');
-    print('Weekly completedTime: $completedTime');
+    //print('Weekly totalPlannedTime: $totalPlannedTime');
+    //print('Weekly completedTime: $completedTime');
 
     if (totalPlannedTime == 0) return 0.0;
 
@@ -991,8 +1328,7 @@ Widget _buildTodoAndWeeklySection() {
     );
   }
 
-
-  //25-08-03 추가
+  //25-08-03 민경 추가
   Future<void> saveDailyAchievement(double achievement) async {
     final headers = await _headers();
     final dateStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
@@ -1031,6 +1367,179 @@ Widget _buildTodoAndWeeklySection() {
     }
   }
 
-
  }
 
+
+// ─────────────────────────────────────────────────────────────
+// 팝오버 본문: 서버 연동 + 전체보기(호스트 컨텍스트 사용)
+// ─────────────────────────────────────────────────────────────
+class _NotificationsPopoverBody extends StatelessWidget {
+  final void Function(bool refresh) onClose;
+  final BuildContext hostContext; // ✅ 페이지 컨텍스트
+  const _NotificationsPopoverBody({
+    super.key,
+    required this.onClose,
+    required this.hostContext,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder(
+      future: NotificationService.instance.fetchNotifications(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const SizedBox(
+            width: 360,
+            height: 520,
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
+        if (snapshot.hasError) {
+          return SizedBox(
+            width: 360,
+            height: 520,
+            child: Center(child: Text('불러오기 실패: ${snapshot.error}')),
+          );
+        }
+
+        final list =
+            (snapshot.data ?? <AppNotification>[]) as List<AppNotification>;
+        list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+        return SizedBox(
+          width: 360,
+          height: 520,
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
+                child: Row(
+                  children: [
+                    const Text(
+                      '알림',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const Spacer(),
+                    TextButton.icon(
+                      onPressed: () async {
+                        try {
+                          await NotificationService.instance
+                              .markAllAsRead(); // 백엔드 호출 + 배지 0
+                        } catch (e) {
+                          debugPrint('모두 읽음 실패: $e');
+                        } finally {
+                          onClose(true); // 팝오버 닫고 상위에서 fetchUnreadCount 재동기화
+                        }
+                      },
+
+                      icon: const Icon(Icons.done_all, size: 18),
+                      label: const Text('모두 읽음'),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+
+              Expanded(
+                child:
+                    list.isEmpty
+                        ? const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(16),
+                            child: Text('알림이 없어요.'),
+                          ),
+                        )
+                        : ListView.separated(
+                          padding: EdgeInsets.zero,
+                          itemCount: list.length,
+                          separatorBuilder: (_, __) => const Divider(height: 1),
+                          itemBuilder: (context, i) {
+                            final n = list[i];
+                            return ListTile(
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 6,
+                              ),
+                              leading: Icon(
+                                n.isRead
+                                    ? Icons.notifications_none
+                                    : Icons.notifications,
+                                color:
+                                    n.isRead
+                                        ? Colors.grey
+                                        : const Color(0xFF004377),
+                              ),
+                              title: Text(
+                                n.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontWeight:
+                                      n.isRead
+                                          ? FontWeight.w500
+                                          : FontWeight.w800,
+                                ),
+                              ),
+                              subtitle: Text(
+                                n.body,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              trailing:
+                                  n.isRead
+                                      ? null
+                                      : const Icon(
+                                        Icons.brightness_1,
+                                        size: 8,
+                                        color: Colors.redAccent,
+                                      ),
+                              onTap: () async {
+                                if (!n.isRead) {
+                                  try {
+                                    await NotificationService.instance
+                                        .markAsRead(n.id); // 읽음 + 배지 -1
+                                  } catch (e) {
+                                    debugPrint('읽음 처리 실패: $e');
+                                  }
+                                }
+                                onClose(true); // 닫고 상위에서 새로고침
+                              },
+                            );
+                          },
+                        ),
+              ),
+
+              Align(
+                alignment: Alignment.centerRight,
+                child: Padding(
+                  padding: const EdgeInsets.only(
+                    right: 8,
+                    left: 8,
+                    top: 6,
+                    bottom: 8,
+                  ),
+                  child: TextButton.icon(
+                    onPressed: () async {
+                      onClose(false); // 팝오버 먼저 닫기
+                      WidgetsBinding.instance.addPostFrameCallback((_) async {
+                        await openNotifications(
+                          hostContext,
+                        ); // ✅ 페이지 컨텍스트로 네비게이션
+                        await NotificationService.instance.fetchUnreadCount();
+                      });
+                    },
+                    icon: const Icon(Icons.arrow_forward, size: 18),
+                    label: const Text('전체 보기'),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}

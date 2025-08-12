@@ -4,13 +4,41 @@ from db import get_db
 from models.user import User
 from models.user_profile import UserProfile as UserProfileModel
 from models.refresh_token import RefreshToken
-from schemas.user_schema import UserCreate, UserLogin, UserOut, UserProfile, PasswordCheck, UserUpdate, UserSubProfileUpdate, NewPasswordUpdate
+from schemas.user_schema import (
+    UserCreate, UserLogin, UserOut, UserProfile,
+    PasswordCheck, UserUpdate, UserSubProfileUpdate,
+    NewPasswordUpdate, StudyTimeUpdate  # ✅ 여기에 StudyTimeUpdate 추가
+)
 from utils.auth import (
     hash_password, verify_password, create_access_token,
-    get_current_user, delete_refresh_token_for_user, delete_expired_refresh_tokens
+    get_current_user, delete_refresh_token_for_user,
+    delete_expired_refresh_tokens
 )
-
+print("✅ user.py 라우터 모듈 로딩됨")  # 이걸 user.py 맨 상단에 추가
 router = APIRouter()
+
+@router.put("/singup-study-time")
+def update_study_time(
+
+    data: StudyTimeUpdate,
+    db: Session = Depends(get_db)
+):
+    print("✅ /singup-study-time 라우터 함수 진입 성공")
+    user = db.query(User).filter(User.login_id == data.login_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user.study_time_mon = data.study_time_mon
+    user.study_time_tue = data.study_time_tue
+    user.study_time_wed = data.study_time_wed
+    user.study_time_thu = data.study_time_thu
+    user.study_time_fri = data.study_time_fri
+    user.study_time_sat = data.study_time_sat
+    user.study_time_sun = data.study_time_sun
+
+    db.commit()
+    return {"message": "Study time preferences updated"}
+
 
 # [회원가입 API]
 @router.post("/signup", response_model=UserOut)
@@ -124,6 +152,7 @@ def verify_password_before_update(
     if not verify_password(check.password, current_user.password):
         raise HTTPException(status_code=401, detail="비밀번호가 일치하지 않습니다.")
     return {"message": "비밀번호 확인 성공"}
+
 
 
 # [사용자 기본 정보 수정 API]

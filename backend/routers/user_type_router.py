@@ -7,6 +7,7 @@ from schemas.user_type_schema import UserTypeInput
 from utils.auth import get_current_user
 from services.user_type_service import compare_latest_user_type_trend
 from services.gpt_feedback_service import generate_feedback_prompt, request_feedback_from_gpt
+from services.user_type_service import auto_predict_and_save_user_type_with_fallback
 
 router = APIRouter()
 
@@ -23,7 +24,7 @@ router = APIRouter()
 '''
 
 #  1. 학습유형 저장
-@router.post("/user-type/save")
+@router.post("/save")
 def save_user_type_history(
     data: UserTypeInput,
     db: Session = Depends(get_db),
@@ -42,7 +43,7 @@ def save_user_type_history(
 
 
 #  2. 전주 대비 추세 비교
-@router.get("/user-type/trend")
+@router.get("/trend")
 def get_user_type_trend(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -54,7 +55,7 @@ def get_user_type_trend(
 
 
 #  3. GPT 피드백 생성
-@router.get("/user-type/feedback")
+@router.get("/feedback")
 def get_user_type_feedback(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -79,7 +80,7 @@ def get_user_type_feedback(
 from schemas.user_type_schema import UserTypeSampleInput
 from services.user_type_service import predict_user_type
 
-@router.post("/user-type/predict")
+@router.post("/predict")
 def predict_user_type_endpoint(
     data: UserTypeSampleInput,  # sample_data: List[List[float]] (7일치 * 7개 feature)
     db: Session = Depends(get_db),
@@ -90,9 +91,22 @@ def predict_user_type_endpoint(
 
 from services.user_type_service import auto_predict_and_save_user_type
 
-@router.post("/user-type/auto-predict")
+# @router.post("/auto-predict")
+# def auto_predict_user_type(
+#     db: Session = Depends(get_db),
+#     current_user: User = Depends(get_current_user)
+# ):
+#     return auto_predict_and_save_user_type(current_user.user_id, db)
+
+
+@router.post("/auto-predict")
 def auto_predict_user_type(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    return auto_predict_and_save_user_type(current_user.user_id, db)
+    # 필요하면 임계값 조정 가능: minutes_threshold=90, active_days_threshold=2 등
+    return auto_predict_and_save_user_type_with_fallback(
+        current_user.user_id, db,
+        minutes_threshold=60,
+        active_days_threshold=2,
+    )

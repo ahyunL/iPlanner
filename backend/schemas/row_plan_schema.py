@@ -1,11 +1,11 @@
-# schemas/row_plan_schema.py
+# 파일 경로: schemas/row_plan_schema.py
 
 from pydantic import BaseModel
 from typing import Optional
 from datetime import date
 
 # RowPlan 생성 시 사용하는 스키마
-
+# schemas/row_plan_schema.py
 
 from pydantic import BaseModel
 
@@ -17,7 +17,7 @@ class RowPlanCreate(BaseModel):
     ranking: int
     plan_time: int
     class Config:
-        from_attributes = True  
+        from_attributes = True  # ✅ v2 표준
 
 
 # 클라이언트에게 반환할 RowPlan 정보 스키마
@@ -31,5 +31,5 @@ class RowPlanOut(BaseModel):
     repetition: int
     plan_time: int
     class Config:
-        from_attributes = True  
+        from_attributes = True  # ✅ v2 표준
 

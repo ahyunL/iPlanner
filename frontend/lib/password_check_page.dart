@@ -1,3 +1,4 @@
+import 'env.dart'; 
 import 'package:flutter/material.dart';
 import 'edit_profile_page.dart';
 import 'package:http/http.dart' as http;
@@ -30,7 +31,7 @@ class _PasswordCheckPageState extends State<PasswordCheckPage> {
       }
 
       final response = await http.post(
-        Uri.parse('http://10.0.2.2:8000/user/verify-password'),
+        Uri.parse('${Env.baseUrl}/user/verify-password'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $accessToken',

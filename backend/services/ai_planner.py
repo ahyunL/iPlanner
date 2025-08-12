@@ -1,31 +1,30 @@
-
-# # backend/services/ai_planner.py
-# # row_plan 저장 → GPT로 계획 분해 → plan 저장 → 리스트 반환
-
-
 import json
 import ast
 import pymysql
+import traceback
 from config import ask_gpt
 from schemas.plan_schema import ToDoItem
-
 
 # GPT 응답을 안전하게 파싱
 def safe_parse_gpt_response(response: str) -> list:
     content = response.strip()
-    print("GPT 응답 원문 >>>", repr(content))
+    print("📤 GPT 응답 원문 >>>", repr(content))
 
     if content.startswith("- "):
-        return [line[2:].strip() for line in content.split("\n") if line.startswith("- ")]
+        result = [line[2:].strip() for line in content.split("\n") if line.startswith("- ")]
+        print("📤 목록형 파싱 결과:", result)
+        return result
 
     if not content.startswith("[") or not content.endswith("]"):
-        print("GPT 응답이 리스트 형식이 아님 → 무시됨")
+        print("📛 GPT 응답이 리스트 형식이 아님 → 무시됨")
         return []
 
     try:
-        return ast.literal_eval(content)
+        result = ast.literal_eval(content)
+        print("📤 리터럴 파싱 결과:", result)
+        return result
     except Exception as e:
-        print(f"리스트 파싱 실패: {e}")
+        print(f"⚠️ 리스트 파싱 실패: {e}")
         return []
 
 # 유니코드 정리 (이모지 깨짐 방지)
@@ -35,15 +34,17 @@ def clean_unicode(text: str) -> str:
 # GPT로 학습 항목 분해
 def expand_row_plan_name(row_plan_name: str) -> list:
     system_prompt = (
-        "너는 학습 계획을 실제 콘텐츠 단위로만 나눠주는 도우미야.\n\n"
-        "💡 반드시 다음 조건을 지켜:\n"
-        "1. 출력은 반드시 파이썬 리스트 형식으로 해. 예: ['1강', '2강', '3강'] 또는 ['챕터 1', '챕터 2']\n"
-        "2. 출력 외에 아무 말도 하지 마 (예시, 설명, 마크다운, 말머리 절대 금지)\n"
-        "3. 아래 단어가 들어간 항목은 절대 포함하지 마:\n"
-        "   복습, 정리, 요약, 계획, 느낀점, 실습, 문제풀이, 이해, 확인, 메모, 정리하기, 작성하기, 질문 등\n"
-        "4. 반드시 실제 강의나 교재의 콘텐츠 단위로만 나눠. (예: 1강, 2강, 1주차, 챕터 1, 챕터 2)\n\n"
-        "✅ 출력 예시:\n['1강', '2강', '3강']\n['1주차', '2주차']\n['챕터 1', '챕터 2', '챕터 3']\n\n"
-        "다른 말 하지 말고 리스트 하나만 출력해."
+        "너는 학습 항목을 콘텐츠 단위로 나누는 도우미야.\n\n"
+        "💡 반드시 다음 규칙을 따라:\n"
+        "1. 출력은 반드시 **파이썬 리스트** 형식으로. 예: ['1주차 시청', '2주차 시청']\n"
+        "2. 출력 외에는 아무 말도 하지 마. (설명, 마크다운, 말머리 등 절대 쓰지 마)\n"
+        "3. 입력에 **숫자 범위**가 포함된 경우, **범위 숫자만 확장**해서 뒤의 단어를 붙여줘.\n"
+        "   예: '3-9주차 시청' → ['3주차 시청', '4주차 시청', ..., '9주차 시청']\n"
+        "   예: '1~9주차 시청' → ['1주차 시청', ..., '9주차 시청']\n"
+        "4. 기존 문장을 앞에 붙이지 마. 항상 **숫자부터 시작하는 콘텐츠 단위**만 포함해.\n"
+        "5. 복습, 정리, 요약 등은 포함하지 마. 실제 콘텐츠만 포함시켜.\n\n"
+        "🚫 금지 예시: ['3-9주차 시청 3주차'] 또는 ['3-9주차 시청 - 1회차 3주차']\n"
+        "✅ 정답 예시: ['3주차 시청', '4주차 시청', ..., '9주차 시청']"
     )
 
     user_prompt = f"\n\n입력 문장: {row_plan_name}\n리스트로 나눠줘."
@@ -70,15 +71,16 @@ def save_row_plans_to_db(user_data: dict):
         with db.cursor() as cursor:
             for plan in user_data["row_plans"]:
                 cursor.execute("""
-                    INSERT INTO row_plan (user_id, subject_id, row_plan_name, type, repetition, ranking)
-                    VALUES (%s, %s, %s, %s, %s, %s)
+                    INSERT INTO row_plan (user_id, subject_id, row_plan_name, type, repetition, ranking, plan_time)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
                 """, (
                     user_data["user_id"],
                     user_data["subject_id"],
                     plan["row_plan_name"],
                     plan["type"],
                     plan["repetition"],
-                    plan["ranking"]
+                    plan["ranking"],
+                    plan.get("plan_time", 60)
                 ))
         db.commit()
         print("row_plan 테이블 저장 완료!")
@@ -87,66 +89,10 @@ def save_row_plans_to_db(user_data: dict):
     finally:
         db.close()
 
-# # 계획(plan) 생성 및 저장
-# def generate_and_save_plans(user_id: int, subject_id: int):
-#     db = pymysql.connect(
-#         host='localhost',
-#         user='root',
-#         password='1204',
-#         database='yuminsu',
-#         charset='utf8mb4',
-#         cursorclass=pymysql.cursors.DictCursor
-#     )
-#     try:
-#         with db.cursor() as cursor:
-#             cursor.execute("""
-#                 SELECT * FROM row_plan
-#                 WHERE user_id = %s AND subject_id = %s
-#                 ORDER BY ranking ASC
-#             """, (user_id, subject_id))
-#             row_plans = cursor.fetchall()
-
-#         todo_items = []
-#         for plan in row_plans:
-#             tasks = expand_row_plan_name(plan["row_plan_name"])
-#             for r in range(1, plan["repetition"] + 1):
-#                 for t in tasks:
-#                     todo_items.append({
-#                         "user_id": user_id,
-#                         "subject_id": subject_id,
-#                         "plan_name": f"{plan['row_plan_name']} - {r}회차 {t}",
-#                         "complete": False,
-#                         "plan_time": plan.get("plan_time", 60),
-#  # 기본 학습 시간
-#                         "plan_date": None  # 날짜 배정 전
-#                     })
-
-#         with db.cursor() as cursor:
-#             for item in todo_items:
-#                 cursor.execute("""
-#                     INSERT INTO plan (user_id, subject_id, plan_name, complete, plan_time, plan_date)
-#                     VALUES (%s, %s, %s, %s, %s, %s)
-#                 """, (
-#                     item["user_id"],
-#                     item["subject_id"],
-#                     item["plan_name"],
-#                     item["complete"],
-#                     item["plan_time"],
-#                     item["plan_date"]
-#                 ))
-
-#         db.commit()
-#         print(f"plan {len(todo_items)}개 저장 완료!")
-
-#     except Exception as e:
-#         print("계획 생성 또는 저장 오류:", e)
-#         print(traceback.format_exc())
-#     finally:
-#         db.close()
-
-
+'''
 # 계획(plan) 생성 및 저장
 def generate_and_save_plans(user_id: int, subject_id: int):
+    print(f"✅ AI 계획 생성 시작: user_id={user_id}, subject_id={subject_id}")
     db = pymysql.connect(
         host='localhost',
         user='root',
@@ -155,6 +101,7 @@ def generate_and_save_plans(user_id: int, subject_id: int):
         charset='utf8mb4',
         cursorclass=pymysql.cursors.DictCursor
     )
+
     try:
         with db.cursor() as cursor:
             cursor.execute("""
@@ -163,21 +110,34 @@ def generate_and_save_plans(user_id: int, subject_id: int):
                 ORDER BY ranking ASC
             """, (user_id, subject_id))
             row_plans = cursor.fetchall()
+            print(f"📦 row_plan 개수: {len(row_plans)}")
+
+        if not row_plans:
+            raise Exception("❌ row_plan이 존재하지 않음")
 
         todo_items = []
         for plan in row_plans:
-            tasks = expand_row_plan_name(plan["row_plan_name"])
-            for r in range(1, plan["repetition"] + 1):
+            plan_name = plan.get("row_plan_name")
+            tasks = expand_row_plan_name(plan_name)
+            print(f"🔍 '{plan_name}' → 분해 결과: {tasks}")
+            if not tasks:
+                raise Exception(f"[GPT 파싱 실패] row_plan_name: {plan_name} → tasks 비었음")
+
+            repetition = plan.get("repetition", 1)
+            plan_time = plan.get("plan_time", 60)
+
+            for r in range(1, repetition + 1):
                 for t in tasks:
                     todo_items.append({
                         "user_id": user_id,
                         "subject_id": subject_id,
-                        "plan_name": f"{plan['row_plan_name']} - {r}회차 {t}",
-                        "original_name": plan['row_plan_name'],  # 연결용 원본 이름 저장
+                        "plan_name": f"{r}회차 {t}",
                         "complete": False,
-                        "plan_time": plan.get("plan_time", 60),
+                        "plan_time": plan_time,
                         "plan_date": None
                     })
+
+        print(f"📝 생성된 plan 개수: {len(todo_items)}")
 
         with db.cursor() as cursor:
             for item in todo_items:
@@ -194,38 +154,126 @@ def generate_and_save_plans(user_id: int, subject_id: int):
                 ))
 
         db.commit()
-        print(f"plan {len(todo_items)}개 저장 완료!")
+        print(f"✅ plan {len(todo_items)}개 저장 완료!")
 
-        # ✅ plan_id를 다시 조회해서 row_plan에 연결
+    except Exception as e:
+        print("❌ 계획 생성 또는 저장 오류:", e)
+        traceback.print_exc()
+    finally:
+        db.close()
+'''
+
+
+# 계획(plan) 생성 및 저장 + row_plan과 연결 (통합본) 민경 유진거랑 병합. (25.8.10)
+def generate_and_save_plans(user_id: int, subject_id: int):
+    import traceback
+    import pymysql
+
+    print(f"✅ 계획 생성 시작: user_id={user_id}, subject_id={subject_id}")
+
+    db = pymysql.connect(
+        host='localhost',
+        user='root',
+        password='1204',
+        database='yuminsu',
+        charset='utf8mb4',
+        cursorclass=pymysql.cursors.DictCursor,
+        autocommit=False,
+    )
+
+    try:
+        # 1) row_plan 조회
         with db.cursor() as cursor:
-            for item in todo_items:
-                cursor.execute("""
-                    SELECT plan_id FROM plan
-                    WHERE user_id = %s AND subject_id = %s AND plan_name = %s
-                """, (item["user_id"], item["subject_id"], item["plan_name"]))
-                result = cursor.fetchone()
+            cursor.execute("""
+                SELECT *
+                FROM row_plan
+                WHERE user_id = %s AND subject_id = %s
+                ORDER BY ranking ASC
+            """, (user_id, subject_id))
+            row_plans = cursor.fetchall()
+        print(f"📦 row_plan 개수: {len(row_plans)}")
 
-                if result:
-                    plan_id = result["plan_id"]
+        if not row_plans:
+            raise Exception("❌ row_plan이 존재하지 않음")
+
+        # 2) todo 목록 생성
+        todo_items = []
+        for rp in row_plans:
+            original_name = rp.get("row_plan_name")
+            repetition = rp.get("repetition", 1)
+            plan_time = rp.get("plan_time", 60)
+
+            tasks = expand_row_plan_name(original_name)
+            print(f"🔍 '{original_name}' → 분해 결과: {tasks}")
+            if not tasks:
+                raise Exception(f"[GPT 파싱 실패] row_plan_name: {original_name} → tasks 비었음")
+
+            for r in range(1, repetition + 1):
+                for t in tasks:
+                    # 이름 규칙: "<원본이름> - {회차}회차 {태스크}"
+                    todo_items.append({
+                        "user_id": user_id,
+                        "subject_id": subject_id,
+                        "plan_name": f"{original_name} - {r}회차 {t}",
+                        "complete": False,
+                        "plan_time": plan_time,
+                        "plan_date": None,
+                        "original_name": original_name,  # row_plan 연계용
+                    })
+
+        print(f"📝 생성된 plan 개수: {len(todo_items)}")
+
+        # 3) plan 저장 (executemany로 성능 향상)
+        with db.cursor() as cursor:
+            cursor.executemany("""
+                INSERT INTO plan (user_id, subject_id, plan_name, complete, plan_time, plan_date)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, [
+                (
+                    it["user_id"],
+                    it["subject_id"],
+                    it["plan_name"],
+                    it["complete"],
+                    it["plan_time"],
+                    it["plan_date"],
+                )
+                for it in todo_items
+            ])
+        print(f"✅ plan {len(todo_items)}개 저장 완료!")
+
+        # 4) 방금 만든 plan 중에서 각 row_plan별로 대표 plan_id를 찾아 연결
+        #    (여러 개가 생성되므로 '첫 번째 것'을 대표로 연결)
+        with db.cursor() as cursor:
+            # original_name 별 첫 번째 plan_id 찾기
+            for rp in row_plans:
+                original_name = rp["row_plan_name"]
+                cursor.execute("""
+                    SELECT plan_id
+                    FROM plan
+                    WHERE user_id=%s AND subject_id=%s AND plan_name LIKE %s
+                    ORDER BY plan_id ASC
+                    LIMIT 1
+                """, (user_id, subject_id, f"{original_name} - %"))
+                first_plan = cursor.fetchone()
+                if first_plan:
                     cursor.execute("""
                         UPDATE row_plan
                         SET plan_id = %s
-                        WHERE user_id = %s AND subject_id = %s AND row_plan_name = %s
-                    """, (
-                        plan_id,
-                        item["user_id"],
-                        item["subject_id"],
-                        item["original_name"]
-                    ))
+                        WHERE user_id=%s AND subject_id=%s AND row_plan_name=%s
+                    """, (first_plan["plan_id"], user_id, subject_id, original_name))
 
         db.commit()
-        print("row_plan.plan_id 연결 완료!")
+        print("🔗 row_plan.plan_id 연결 완료!")
+        print("🎉 generate_and_save_plans 완료")
 
     except Exception as e:
-        print("계획 생성 또는 저장 오류:", e)
-        print(traceback.format_exc())
+        db.rollback()
+        print("❌ 계획 생성/저장/연결 중 오류:", e)
+        traceback.print_exc()
     finally:
         db.close()
+
+
 
 
 # plan 테이블에서 ToDoItem 리스트 반환
@@ -252,7 +300,7 @@ def create_plan_list_for_response(user_id: int, subject_id: int):
 
     except Exception as e:
         print("plan 리스트 응답 오류:", e)
+        traceback.print_exc()
         return []
     finally:
         db.close()
-

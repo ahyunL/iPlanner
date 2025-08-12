@@ -1,7 +1,9 @@
+import 'env.dart'; 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'signup_studytime.dart';
 
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
@@ -16,7 +18,9 @@ class _SignUpPageState extends State<SignUpPage> {
 
   final TextEditingController _idController = TextEditingController();
   final TextEditingController _pwController = TextEditingController();
-  final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _pwConfirmController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController(text: '010');
+  final TextEditingController _birthdayController = TextEditingController();
   DateTime? _selectedBirthday;
 
   bool agreeAll = false;
@@ -34,12 +38,15 @@ class _SignUpPageState extends State<SignUpPage> {
   void dispose() {
     _idController.dispose();
     _pwController.dispose();
+    _pwConfirmController.dispose();
     _phoneController.dispose();
+    _birthdayController.dispose();
     super.dispose();
   }
 
   void _formatPhoneNumber() {
     String digits = _phoneController.text.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.length > 13) digits = digits.substring(0, 13);
     if (digits.length <= 3) {
       _phoneController.value = TextEditingValue(
         text: digits,
@@ -48,19 +55,12 @@ class _SignUpPageState extends State<SignUpPage> {
     } else if (digits.length <= 7) {
       _phoneController.value = TextEditingValue(
         text: '${digits.substring(0, 3)}-${digits.substring(3)}',
-        selection: TextSelection.collapsed(
-          offset: '${digits.substring(0, 3)}-${digits.substring(3)}'.length,
-        ),
+        selection: TextSelection.collapsed(offset: '${digits.substring(0, 3)}-${digits.substring(3)}'.length),
       );
-    } else if (digits.length <= 11) {
+    } else {
       _phoneController.value = TextEditingValue(
-        text:
-            '${digits.substring(0, 3)}-${digits.substring(3, 7)}-${digits.substring(7)}',
-        selection: TextSelection.collapsed(
-          offset:
-              '${digits.substring(0, 3)}-${digits.substring(3, 7)}-${digits.substring(7)}'
-                  .length,
-        ),
+        text: '${digits.substring(0, 3)}-${digits.substring(3, 7)}-${digits.substring(7)}',
+        selection: TextSelection.collapsed(offset: '${digits.substring(0, 3)}-${digits.substring(3, 7)}-${digits.substring(7)}'.length),
       );
     }
   }
@@ -79,20 +79,59 @@ class _SignUpPageState extends State<SignUpPage> {
     if (picked != null) {
       setState(() {
         _selectedBirthday = picked;
+        _birthdayController.text = '${picked.year}.${picked.month.toString().padLeft(2, '0')}.${picked.day.toString().padLeft(2, '0')}';
       });
     }
   }
 
   Future<void> _signUp() async {
-    print('회원가입 API 요청 시작');
-    final url = Uri.parse('http://10.0.2.2:8000/user/signup');
+    if (_idController.text.trim().isEmpty ||
+        _pwController.text.isEmpty ||
+        _pwConfirmController.text.isEmpty ||
+        _birthdayController.text.isEmpty ||
+        _phoneController.text.isEmpty) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text("입력 누락"),
+          content: const Text("모든 항목을 입력해주세요."),
+          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("확인"))],
+        ),
+      );
+      return;
+    }
+
+    if (!agreePrivacy || !agreeMarketing || !agreeAnalysis) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text("약관 미동의"),
+          content: const Text("모든 약관에 동의해야 회원가입이 가능합니다."),
+          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("확인"))],
+        ),
+      );
+      return;
+    }
+
+    if (_pwController.text != _pwConfirmController.text) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text("비밀번호 불일치"),
+          content: const Text("비밀번호와 비밀번호 확인이 일치하지 않습니다."),
+          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("확인"))],
+        ),
+      );
+      return;
+    }
+
+    final url = Uri.parse('${Env.baseUrl}/user/signup');
     final Map<String, dynamic> signupData = {
       "login_id": _idController.text.trim(),
       "password": _pwController.text.trim(),
-      "birthday":
-          _selectedBirthday != null
-              ? "${_selectedBirthday!.year}-${_selectedBirthday!.month.toString().padLeft(2, '0')}-${_selectedBirthday!.day.toString().padLeft(2, '0')}"
-              : '',
+      "birthday": _selectedBirthday != null
+          ? "${_selectedBirthday!.year}-${_selectedBirthday!.month.toString().padLeft(2, '0')}-${_selectedBirthday!.day.toString().padLeft(2, '0')}"
+          : '',
       "phone": _phoneController.text.replaceAll(RegExp(r'[^0-9]'), ''),
     };
 
@@ -103,25 +142,42 @@ class _SignUpPageState extends State<SignUpPage> {
         body: jsonEncode(signupData),
       );
 
+      final resBody = jsonDecode(response.body);
+
       if (response.statusCode == 200) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('회원가입 성공!')));
-        Navigator.pop(context);
-      } else {
-        final Map<String, dynamic> resBody = jsonDecode(response.body);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('회원가입 실패: ${resBody["detail"] ?? "오류"}')),
+          const SnackBar(content: Text('회원가입 성공!')),
+        );
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => StudyPreferencePage(
+              loginId: _idController.text.trim(),
+            ),
+          ),
+        );
+      } else {
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text("회원가입 실패"),
+            content: Text(resBody is Map<String, dynamic> && resBody.containsKey("detail") ? resBody["detail"] : "서버 오류 또는 알 수 없는 오류가 발생했습니다."),
+            actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("확인"))],
+          ),
         );
       }
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('회원가입 오류: $e')));
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text("오류"),
+          content: Text("회원가입 중 오류가 발생했습니다: $e"),
+          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("확인"))],
+        ),
+      );
     }
   }
-
-  @override
+@override
   Widget build(BuildContext context) {
     final isTablet = MediaQuery.of(context).size.width >= 600;
     return Scaffold(
@@ -151,46 +207,32 @@ class _SignUpPageState extends State<SignUpPage> {
               children: [
                 Column(
                   children: [
-                    Image.asset('assets/logo.png', height: 60),
-                    const SizedBox(height: 16),
+                    Image.asset('assets/logo.png', height: 80),
+                    const SizedBox(height: 24),
                   ],
                 ),
-                _buildTextField(
-                  TextEditingController(
-                    text:
-                        _selectedBirthday != null
-                            ? "${_selectedBirthday!.year}.${_selectedBirthday!.month.toString().padLeft(2, '0')}.${_selectedBirthday!.day.toString().padLeft(2, '0')}"
-                            : '',
-                  ),
-                  '생년월일 *',
-                  readOnly: true,
+                _buildTextField(_birthdayController, '생년월일 *',
+                  readOnly: false,
                   suffixIcon: IconButton(
-                    icon: const Icon(
-                      Icons.calendar_today,
-                      color: Color(0xFF004377),
-                    ),
+                    icon: const Icon(Icons.calendar_today, color: Color(0xFF004377)),
                     onPressed: _pickBirthday,
                   ),
                 ),
                 _buildTextField(_idController, '아이디 (로그인 ID)'),
                 _buildTextField(_pwController, '비밀번호', obscure: true),
+                _buildTextField(_pwConfirmController, '비밀번호 확인', obscure: true),
                 _buildTextField(_phoneController, '휴대폰 번호'),
                 const SizedBox(height: 16),
                 _buildAgreementCheckboxes(),
                 const SizedBox(height: 32),
                 const Divider(thickness: 1),
-                const Text(
-                  "모든 항목을 확인한 후 회원가입을 눌러주세요",
-                  style: TextStyle(fontSize: 13, color: Colors.grey),
-                ),
+                const Text("모든 항목을 확인한 후 회원가입을 눌러주세요", style: TextStyle(fontSize: 13, color: Colors.grey)),
                 const SizedBox(height: 12),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: cobaltBlue,
                     minimumSize: const Size.fromHeight(50),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
                   onPressed: () {
                     if (agreePrivacy) {
@@ -201,10 +243,7 @@ class _SignUpPageState extends State<SignUpPage> {
                       );
                     }
                   },
-                  child: const Text(
-                    '회원가입',
-                    style: TextStyle(color: Colors.white),
-                  ),
+                  child: const Text('회원가입', style: TextStyle(color: Colors.white)),
                 ),
               ],
             ),
@@ -227,7 +266,6 @@ class _SignUpPageState extends State<SignUpPage> {
         controller: controller,
         obscureText: obscure,
         readOnly: readOnly,
-        onTap: readOnly ? _pickBirthday : null,
         decoration: InputDecoration(
           labelText: label,
           labelStyle: const TextStyle(color: Color(0xFF004377)),
@@ -242,15 +280,15 @@ class _SignUpPageState extends State<SignUpPage> {
           suffixIcon: suffixIcon,
         ),
         cursorColor: cobaltBlue,
-        keyboardType:
-            label.contains('휴대폰') ? TextInputType.phone : TextInputType.text,
+        keyboardType: label.contains('휴대폰') ? TextInputType.phone : TextInputType.text,
+        inputFormatters: label.contains('휴대폰') ? [LengthLimitingTextInputFormatter(13)] : null,
       ),
     );
   }
 
   Widget _buildAgreementCheckboxes() {
     return Card(
-      color: Color(0xFFF5F5F5),
+      color: const Color(0xFFF5F5F5),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 12),
@@ -275,11 +313,7 @@ class _SignUpPageState extends State<SignUpPage> {
               onChanged: (val) {
                 setState(() {
                   agreePrivacy = val ?? false;
-                  if (!agreePrivacy || !agreeMarketing || !agreeAnalysis) {
-                    agreeAll = false;
-                  } else if (agreePrivacy && agreeMarketing && agreeAnalysis) {
-                    agreeAll = true;
-                  }
+                  agreeAll = agreePrivacy && agreeMarketing && agreeAnalysis;
                 });
               },
               title: const Text('[필수] 개인정보 수집 및 이용 동의'),
@@ -291,11 +325,7 @@ class _SignUpPageState extends State<SignUpPage> {
               onChanged: (val) {
                 setState(() {
                   agreeMarketing = val ?? false;
-                  if (!agreePrivacy || !agreeMarketing || !agreeAnalysis) {
-                    agreeAll = false;
-                  } else if (agreePrivacy && agreeMarketing && agreeAnalysis) {
-                    agreeAll = true;
-                  }
+                  agreeAll = agreePrivacy && agreeMarketing && agreeAnalysis;
                 });
               },
               title: const Text('[선택] 마케팅 정보 수신 동의'),
@@ -307,11 +337,7 @@ class _SignUpPageState extends State<SignUpPage> {
               onChanged: (val) {
                 setState(() {
                   agreeAnalysis = val ?? false;
-                  if (!agreePrivacy || !agreeMarketing || !agreeAnalysis) {
-                    agreeAll = false;
-                  } else if (agreePrivacy && agreeMarketing && agreeAnalysis) {
-                    agreeAll = true;
-                  }
+                  agreeAll = agreePrivacy && agreeMarketing && agreeAnalysis;
                 });
               },
               title: const Text('[선택] 학습 이력 분석 동의'),

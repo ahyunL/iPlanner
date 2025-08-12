@@ -8,16 +8,10 @@ from datetime import date, timedelta
 from utils.auth import get_current_user
 from typing import Dict
 from schemas.timer import TimerCreate
-
 # 0805 민경 추가.
 from services.user_study_service import upsert_user_study_daily
 
-
 router = APIRouter()
-
-
-
-
 
 # # 타이머 저장용 스키마
 # class TimerCreate(BaseModel):
@@ -57,7 +51,6 @@ def add_timer_session(
     upsert_user_study_daily(current_user.user_id, data.study_date, db)
 
     return {"message": "세션 저장 완료", "session_minutes": session_duration}
-
 
 
 # 특정 날짜 공부 시간 조회
@@ -140,6 +133,7 @@ def get_weekly_minutes_by_day(
 # 해당 날짜의 모든 공부 세션 불러오기 
 
 from typing import List
+from schemas.timer import TimerRead
 
 @router.get("/sessions/{study_date}", response_model=List[TimerRead])
 def get_timer_sessions_by_date(
@@ -153,5 +147,7 @@ def get_timer_sessions_by_date(
     ).all()
 
     return sessions
+
+
 
 

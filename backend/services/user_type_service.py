@@ -13,6 +13,7 @@ from datetime import date, timedelta
 from models.user_type_history import UserTypeHistory
 from typing import List, Optional
 
+
 MODEL = None
 ENCODERS = None
 SCALER = None
@@ -226,3 +227,91 @@ def auto_predict_and_save_user_type(user_id: int, db: Session):
         "filled_input_preview": input_data,
     }
 
+
+
+def auto_predict_and_save_user_type_with_fallback(
+    user_id: int,
+    db: Session,
+    minutes_threshold: int = 60,     # 총 60분 이하이면 불안정
+    active_days_threshold: int = 2,  # 기록일 2일 이하이면 불안정
+):
+    """기존 auto_predict_and_save_user_type 실행 후,
+    이번 주 데이터가 너무 적으면 timeslot만 최근7일 최빈값으로 덮어씌우고 DB/응답에 반영.
+    """
+    # 1) 일단 기존 로직(모델 예측 + 저장) 수행
+    result = auto_predict_and_save_user_type(user_id, db)
+
+    # 2) 이번 주 구간(월~일) 계산
+    today = date.today()
+    week_start = today - timedelta(days=today.weekday())  # Monday
+    week_end = week_start + timedelta(days=6)
+
+    # 이번 주 user_study_daily 합/활성일 계산
+    week_rows = (
+        db.query(UserStudyDaily)
+        .filter(
+            UserStudyDaily.user_id == user_id,
+            UserStudyDaily.study_date >= week_start,
+            UserStudyDaily.study_date <= week_end,
+        )
+        .all()
+    )
+    total_minutes_week = sum(r.total_minutes or 0 for r in week_rows)
+    active_days = sum(1 for r in week_rows if (r.total_minutes or 0) > 0)
+
+    # 3) 기준 만족하면 → 최근 7일 합계로 최빈 시간대 산출
+    if total_minutes_week <= minutes_threshold or active_days <= active_days_threshold:
+        last7_start = today - timedelta(days=6)
+        last7_rows = (
+            db.query(UserStudyDaily)
+            .filter(
+                UserStudyDaily.user_id == user_id,
+                UserStudyDaily.study_date >= last7_start,
+                UserStudyDaily.study_date <= today,
+            )
+            .all()
+        )
+
+        totals = {
+            "오전": sum(r.morning_minutes or 0 for r in last7_rows),
+            "오후": sum(r.afternoon_minutes or 0 for r in last7_rows),
+            "저녁": sum(r.evening_minutes or 0 for r in last7_rows),
+            "심야": sum(r.night_minutes or 0 for r in last7_rows),
+        }
+        # 전부 0이면 기본값은 '오전'
+        fallback_timeslot = max(totals, key=totals.get) if any(totals.values()) else "오전"
+
+        # 4) 방금 저장된 이번 주 UserTypeHistory 찾아서 timeslot만 교체
+        uth = (
+            db.query(UserTypeHistory)
+            .filter(
+                UserTypeHistory.user_id == user_id,
+                UserTypeHistory.week_start_date == week_start,
+            )
+            .first()
+        )
+        if uth:
+            uth.timeslot = fallback_timeslot
+            db.commit()
+
+        # 5) 응답 객체도 교체 및 사유 태그
+        if isinstance(result, dict):
+            # 예상 result 구조: {'prediction': {'성실도':..., '반복형':..., '시간대':...}, 'missing_days':..., ...}
+            prediction = result.get("prediction", {})
+            prediction["시간대"] = fallback_timeslot
+            result["prediction"] = prediction
+            result["fallback_used"] = True
+            result["fallback_reason"] = {
+                "total_minutes_week": total_minutes_week,
+                "active_days": active_days,
+                "minutes_threshold": minutes_threshold,
+                "active_days_threshold": active_days_threshold,
+                "basis": "최근 7일 합계 최빈 시간대",
+            }
+
+    else:
+        # 기준 미충족 → 모델 값 그대로 사용
+        if isinstance(result, dict):
+            result["fallback_used"] = False
+
+    return result

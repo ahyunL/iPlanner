@@ -1,4 +1,5 @@
 // study_result.dart
+import 'env.dart'; 
 import 'package:flutter/material.dart';
 
 class StudyResultPage extends StatefulWidget {
@@ -14,7 +15,7 @@ class _StudyResultPageState extends State<StudyResultPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text(' ')),
+      //appBar: AppBar(title: const Text(' ')),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(

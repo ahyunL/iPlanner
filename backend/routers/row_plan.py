@@ -64,9 +64,22 @@ def get_all_row_plans(db: Session = Depends(get_db)):
     return db.query(RowPlan).all()
 
 
-@router.get("/row-plans/subject/{subject_id}", response_model=List[RowPlanOut])
+
+@router.get("/by-subject/{subject_id}", response_model=List[RowPlanOut])
 def get_row_plans_by_subject(subject_id: int, db: Session = Depends(get_db)):
-    """
-    특정 과목(subject_id)에 속한 학습 자료만 조회합니다.
-    """
-    return db.query(RowPlan).filter(RowPlan.subject_id == subject_id).all()
+    return db.query(RowPlan).filter(RowPlan.subject_id == subject_id).order_by(RowPlan.ranking).all()
+@router.delete("/by-subject/{subject_id}")  # ✅ prefix가 이미 '/row-plan'임
+def delete_row_plans_by_subject(
+    subject_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    token = request.headers.get("Authorization").split(" ")[1]
+    user_id = get_user_id_from_token(token)
+
+    deleted = db.query(RowPlan).filter(
+        RowPlan.subject_id == subject_id,
+        RowPlan.user_id == user_id
+    ).delete()
+    db.commit()
+    return {"message": f"{deleted}개의 row_plan이 삭제되었습니다."}

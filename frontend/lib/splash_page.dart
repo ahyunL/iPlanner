@@ -1,5 +1,5 @@
 //lib/splash_page.dart #시작화면 애니메이션.
-
+import 'env.dart'; 
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -102,7 +102,7 @@ class _SplashPageState extends State<SplashPage> with TickerProviderStateMixin {
               ),
             ),
 
-            // SizedBox 제거 또는 유지
+            // ✅ SizedBox 제거 또는 유지
             FadeTransition(
               opacity: _textFade,
               child: SlideTransition(

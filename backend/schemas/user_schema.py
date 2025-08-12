@@ -78,3 +78,14 @@ class UserSubProfileUpdate(BaseModel):
 # 비밀번호 변경용 (현재 비번 없이 새 비번만 받음)
 class NewPasswordUpdate(BaseModel):
     new_password: str
+
+# 요일별 공부 선호 시간만 따로 받는 요청용 스키마
+class StudyTimeUpdate(BaseModel):
+    login_id: str
+    study_time_mon: int
+    study_time_tue: int
+    study_time_wed: int
+    study_time_thu: int
+    study_time_fri: int
+    study_time_sat: int
+    study_time_sun: int
