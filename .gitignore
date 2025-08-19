@@ -34,3 +34,4 @@ trained_models*/
 **/secrets.*
 **/*secret*.json
 **/*config*.yaml
+backend/.env
