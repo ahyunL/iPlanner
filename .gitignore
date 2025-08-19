@@ -26,3 +26,11 @@ dist/
 *.dylib
 vector_db/
 trained_models*/
+# Secrets / env
+.env
+*.env
+.env.*
+**/.env
+**/secrets.*
+**/*secret*.json
+**/*config*.yaml
