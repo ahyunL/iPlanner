@@ -15,6 +15,7 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
     if not db_user or not verify_password(user.password, db_user.password):
         raise HTTPException(status_code=401, detail="로그인 정보가 일치하지 않습니다.")
     token = create_access_token({"sub": str(db_user.user_id)})
+    print(f"✅ Access Token: {token}")  # 콘솔에 표시
     return {"access_token": token, "token_type": "bearer"}
 
 # Refresh Token 재발급

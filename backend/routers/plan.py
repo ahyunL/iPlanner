@@ -25,6 +25,8 @@ from sqlalchemy.orm import Session
 from db import get_db
 import os
 
+from models.row_plan import RowPlan  # 8월 13일 민경 추가
+
 # .env에서 불러오는 시크릿 키와 알고리즘
 SECRET_KEY = os.getenv("SECRET_KEY", "default_secret")  # .env에 SECRET_KEY 값이 있어야 함
 ALGORITHM = "HS256"
@@ -412,7 +414,9 @@ def delete_plan(plan_id: int, request: Request, db: Session = Depends(get_db)):
         print("❌ 삭제 중 오류 발생:", e)
         raise HTTPException(status_code=500, detail="삭제 중 서버 오류 발생")
 
-@router.delete("/by-subject/{subject_id}")  # ✅ prefix가 이미 '/plan'임
+
+#8월 13일 민경 교체
+@router.delete("/by-subject/{subject_id}")
 def delete_plans_by_subject(
     subject_id: int,
     request: Request,
@@ -421,9 +425,50 @@ def delete_plans_by_subject(
     token = request.headers.get("Authorization").split(" ")[1]
     user_id = get_user_id_from_token(token)
 
-    deleted = db.query(Plan).filter(
+    # ORM per-row 삭제: cascade/순서가 제대로 적용되어 complete=1 섞여 있어도 안전
+    plans = db.query(Plan).filter(
         Plan.subject_id == subject_id,
         Plan.user_id == user_id
-    ).delete()
+    ).all()
+
+    count = 0
+    for p in plans:
+        db.delete(p)
+        count += 1
+
     db.commit()
-    return {"message": f"{deleted}개의 plan이 삭제되었습니다."}
+    return {"message": f"{count}개의 plan이 삭제되었습니다."}
+
+
+@router.delete("/by-subject/{subject_id}/all")
+def delete_everything_of_subject(
+    subject_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    token = request.headers.get("Authorization").split(" ")[1]
+    user_id = get_user_id_from_token(token)
+
+    # 1) Plan 전부 per-row 삭제 (ORM cascade/순서 보장)
+    plans = db.query(Plan).filter(
+        Plan.subject_id == subject_id,
+        Plan.user_id == user_id
+    ).all()
+
+    plan_count = 0
+    for p in plans:
+        db.delete(p)
+        plan_count += 1
+
+    db.flush()  # FK 참조 깨끗이 정리된 상태로 진행
+
+    # 2) RowPlan은 이제 참조 없으므로 bulk 삭제 OK
+    rowplan_deleted = db.query(RowPlan).filter(
+        RowPlan.subject_id == subject_id,
+        RowPlan.user_id == user_id
+    ).delete(synchronize_session=False)
+
+    db.commit()
+    return {
+        "message": f"삭제 완료: plan {plan_count}개, row_plan {rowplan_deleted}개"
+    }

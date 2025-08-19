@@ -1,3 +1,9 @@
+# --- add this at the very top of backend/main.py ---
+import os
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"  # 중복 OpenMP 허용(충돌 예방)
+os.environ["OMP_NUM_THREADS"] = "1"          # 스레드 축소(충돌 완화)
+# ---------------------------------------------------
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles

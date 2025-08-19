@@ -17,7 +17,7 @@ class RowPlanCreate(BaseModel):
     ranking: int
     plan_time: int
     class Config:
-        from_attributes = True  # ✅ v2 표준
+        from_attributes = True  
 
 
 # 클라이언트에게 반환할 RowPlan 정보 스키마
@@ -31,5 +31,5 @@ class RowPlanOut(BaseModel):
     repetition: int
     plan_time: int
     class Config:
-        from_attributes = True  # ✅ v2 표준
+        from_attributes = True  
 

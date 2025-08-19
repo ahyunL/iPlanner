@@ -47,7 +47,7 @@ class _TimerPageState extends State<TimerPage> {
           final sessions = timerProvider.sessionList;
           final int totalMinutes = sessions.fold(0, (sum, s) => sum + s.totalMinutes);
 
-          // ✅ 오늘 하루(0~23시) * 6칸(10분) = 144칸 — 각 칸은 0.0~1.0 비율로 채움
+          // 오늘 하루(0~23시) * 6칸(10분) = 144칸 — 각 칸은 0.0~1.0 비율로 채움
           final slotFractions = _computeDailySlotFractions(sessions);
 
           return SingleChildScrollView(
@@ -59,7 +59,7 @@ class _TimerPageState extends State<TimerPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // 🕒 타이머 카드 영역 (상단 고정, 중앙 정렬, 최대너비 제한)
+                      // 타이머 카드 영역 (상단 고정, 중앙 정렬, 최대너비 제한)
                       Center(
                         child: ConstrainedBox(
                           constraints: const BoxConstraints(maxWidth: 1000),
@@ -264,11 +264,14 @@ class _TimeTableSection extends StatelessWidget {
   }
 }
 
+
+//8월 13일 민경 클래스 교체.
 class _SessionListSection extends StatelessWidget {
   const _SessionListSection({required this.sessions});
   final List<StudySession> sessions;
 
-  String _fmtTime(DateTime t) => '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+  String _fmtTime(DateTime t) =>
+      '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 
   @override
   Widget build(BuildContext context) {
@@ -279,58 +282,94 @@ class _SessionListSection extends StatelessWidget {
           alignment: Alignment.centerLeft,
           child: Text(
             '오늘의 공부 세션',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+            style: Theme.of(context)
+                .textTheme
+                .titleMedium
+                ?.copyWith(fontWeight: FontWeight.bold),
           ),
         ),
         const SizedBox(height: 6),
-        // 왼쪽 섹션의 "총 공부 시간" 라인(텍스트 높이 ~20) + 아래 간격(12)을 합친 공간을 확보해
+        // 왼쪽 섹션의 "총 공부 시간" 라인(텍스트 높이 ~20) + 아래 간격(12)을 합친 공간을 확보
         const SizedBox(height: 28),
+
         if (sessions.isEmpty)
-        const Card(
-          elevation: 0,
-          color: Color(0xFFF7F7F7),
-          child: Padding(
-            padding: EdgeInsets.all(16.0),
-            child: Text('오늘 세션이 없습니다.'),
-          ),
-        )
+          const Card(
+            elevation: 0,
+            color: Color(0xFFF7F7F7),
+            child: Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Text('오늘 세션이 없습니다.'),
+            ),
+          )
         else
-        ListView.builder(
-          physics: const NeverScrollableScrollPhysics(),
-          shrinkWrap: true,
-          itemCount: sessions.length,
-          itemBuilder: (context, index) {
-            final session = sessions[index];
-            return Card(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              elevation: 1,
-              margin: const EdgeInsets.symmetric(vertical: 6),
-              child: Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('${_fmtTime(session.startTime)} ~ ${_fmtTime(session.endTime)}', style: const TextStyle(fontSize: 16)),
-                    const Expanded(
-                    child: Center(child: Text('공부 세션', style: TextStyle(fontSize: 16))),
-                    ),
-                    Text('${session.totalMinutes}분', style: const TextStyle(color: Colors.grey)),
-                    IconButton(
-                      icon: const Icon(Icons.delete, color: Colors.grey),
-                      onPressed: () {
-                        Provider.of<TimerProvider>(context, listen: false).removeSessionAt(index);
-                      },
-                    ),
-                  ],
+          ListView.builder(
+            physics: const NeverScrollableScrollPhysics(),
+            shrinkWrap: true,
+            itemCount: sessions.length,
+            itemBuilder: (context, index) {
+              final session = sessions[index];
+              return Card(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
-              ),
-            );
-          },
-        ),
+                elevation: 1,
+                margin: const EdgeInsets.symmetric(vertical: 6),
+                child: Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        '${_fmtTime(session.startTime)} ~ ${_fmtTime(session.endTime)}',
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                      const Expanded(
+                        child: Center(
+                          child: Text('공부 세션', style: TextStyle(fontSize: 16)),
+                        ),
+                      ),
+                      Text(
+                        '${session.totalMinutes}분',
+                        style: const TextStyle(color: Colors.grey),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete, color: Colors.grey),
+                        onPressed: () async {
+                          final prov = Provider.of<TimerProvider>(
+                            context,
+                            listen: false,
+                          );
+
+                          // ✅ 서버에 실제 삭제 요청 (StudySession.id 사용)
+                          final ok = await prov.deleteSession(session.id);
+
+                          // 사용자 피드백
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                ok ? '세션을 삭제했어요.' : '삭제에 실패했어요.',
+                              ),
+                            ),
+                          );
+
+                          // 성공 시 오늘 목록 리프레시(서버 기준으로 동기화)
+                          if (ok) {
+                            await prov.fetchSessionsByDate(DateTime.now());
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
       ],
     );
   }
 }
+
+
 
 class _TimeTableGrid extends StatelessWidget {
   const _TimeTableGrid({required this.slotFractions});
@@ -413,228 +452,4 @@ class _TimeTableGrid extends StatelessWidget {
 
 
 
-// import 'package:flutter/material.dart';
-// import 'package:provider/provider.dart';
-// import 'timer_provider.dart';
-// import 'package:capstone_edu_app/study_session.dart';
 
-// class TimerPage extends StatefulWidget {
-//   const TimerPage({super.key});
-
-//   @override
-//   State<TimerPage> createState() => _TimerPageState();
-// }
-
-// class _TimerPageState extends State<TimerPage> {
-//   bool _isInitialized = false;
-
-//   @override
-//   void initState() {
-//     super.initState();
-//     WidgetsBinding.instance.addPostFrameCallback((_) {
-//       Provider.of<TimerProvider>(context, listen: false).fetchSessionsByDate(DateTime.now());
-//     });
-//   }
-
-//   @override
-//   void didChangeDependencies() {
-//     super.didChangeDependencies();
-//     if (!_isInitialized) {
-//       Provider.of<TimerProvider>(context, listen: false).restoreTimerState();
-//       _isInitialized = true;
-//     }
-//   }
-
-//   Widget buildTimeGrid(List<StudySession> sessions) {
-//     const int startHour = 0;
-//     const int endHour = 24;
-//     const double cellHeight = 24;
-//     const double cellWidth = 24;
-//     final int rows = endHour - startHour;
-//     final int columns = 6; // 10분 단위
-
-//     return SingleChildScrollView(
-//       scrollDirection: Axis.horizontal,
-//       child: SizedBox(
-//         width: columns * cellWidth + 60,
-//         child: ListView.builder(
-//           itemCount: rows,
-//           itemBuilder: (context, rowIndex) {
-//             final hour = startHour + rowIndex;
-//             return Row(
-//               crossAxisAlignment: CrossAxisAlignment.start,
-//               children: [
-//                 SizedBox(
-//                   width: 40,
-//                   height: cellHeight,
-//                   child: Center(
-//                     child: Text(
-//                       '${hour % 24}시',
-//                       style: const TextStyle(fontSize: 12, color: Colors.black54),
-//                     ),
-//                   ),
-//                 ),
-//                 SizedBox(
-//                   width: columns * cellWidth,
-//                   height: cellHeight,
-//                   child: Stack(
-//                     children: [
-//                       Row(
-//                         children: List.generate(columns, (_) => Container(
-//                           width: cellWidth,
-//                           height: cellHeight,
-//                           decoration: BoxDecoration(
-//                             border: Border.all(color: Colors.grey.shade300),
-//                           ),
-//                         )),
-//                       ),
-//                       ...sessions.map((session) {
-//                         final start = session.startTime;
-//                         final end = session.endTime;
-
-//                         // if (start.hour > hour || end.hour < hour) return const SizedBox.shrink();
-
-//                         // final startMinute = start.hour == hour ? start.minute : 0;
-//                         // final endMinute = end.hour == hour ? end.minute : 60;
-//                         if (start == null || end == null) return const SizedBox.shrink();
-
-//                         if (start!.hour > hour || end!.hour < hour) return const SizedBox.shrink();
-
-//                         final startMinute = start!.hour == hour ? start!.minute : 0;
-//                         final endMinute = end!.hour == hour ? end!.minute : 60;
-
-
-//                         final left = (startMinute / 10) * cellWidth;
-//                         final width = ((endMinute - startMinute) / 10) * cellWidth;
-
-//                         return Positioned(
-//                           left: left,
-//                           top: 3,
-//                           child: Container(
-//                             width: width,
-//                             height: cellHeight - 6,
-//                             decoration: BoxDecoration(
-//                               color: Colors.lightBlue.shade100.withOpacity(0.7),
-//                               borderRadius: BorderRadius.circular(4),
-//                               boxShadow: [
-//                                 BoxShadow(
-//                                   color: Colors.black12,
-//                                   blurRadius: 2,
-//                                   offset: Offset(1, 1),
-//                                 )
-//                               ],
-//                             ),
-//                           ),
-//                         );
-//                       }).toList(),
-//                     ],
-//                   ),
-//                 )
-//               ],
-//             );
-//           },
-//         ),
-//       ),
-//     );
-//   }
-
-//   @override
-//   Widget build(BuildContext context) {
-//     return Scaffold(
-//       backgroundColor: Colors.grey[100],
-//       appBar: AppBar(title: const Text('타이머')),
-//       body: Consumer<TimerProvider>(
-//         builder: (context, timerProvider, _) {
-//           final sessions = timerProvider.sessionList;
-
-//           return Center( // 중앙 정렬
-//             child: ConstrainedBox(
-//               constraints: const BoxConstraints(maxWidth: 720), // 화면 중앙에 너비 제한
-//               child: Padding(
-//                 padding: const EdgeInsets.symmetric(horizontal: 8),
-//                 child: Row(
-//                   crossAxisAlignment: CrossAxisAlignment.start,
-//                   children: [
-//                     /// 타이머 영역
-//                     Expanded(
-//                       flex: 1,
-//                       child: Container(
-//                         margin: const EdgeInsets.all(16),
-//                         padding: const EdgeInsets.all(20),
-//                         decoration: BoxDecoration(
-//                           color: Colors.white,
-//                           borderRadius: BorderRadius.circular(16),
-//                           boxShadow: const [
-//                             BoxShadow(
-//                               color: Colors.black12,
-//                               blurRadius: 4,
-//                               offset: Offset(2, 2),
-//                             )
-//                           ],
-//                         ),
-//                         child: Column(
-//                           children: [
-//                             const SizedBox(height: 20),
-//                             Text(
-//                               timerProvider.formattedTime,
-//                               style: const TextStyle(fontSize: 60, fontWeight: FontWeight.bold),
-//                             ),
-//                             const SizedBox(height: 20),
-//                             IconButton(
-//                               icon: Icon(
-//                                 timerProvider.isRunning ? Icons.pause : Icons.play_arrow,
-//                                 size: 48,
-//                               ),
-//                               onPressed: () {
-//                                 if (timerProvider.isRunning) {
-//                                   timerProvider.pause();
-//                                 } else {
-//                                   timerProvider.start();
-//                                 }
-//                               },
-//                             ),
-//                             const SizedBox(height: 20),
-//                           ],
-//                         ),
-//                       ),
-//                     ),
-
-//                     /// 타임 테이블 영역
-//                     Expanded(
-//                       flex: 1,
-//                       child: Padding(
-//                         padding: const EdgeInsets.fromLTRB(8, 16, 16, 16),
-//                         child: Column(
-//                           crossAxisAlignment: CrossAxisAlignment.start,
-//                           children: [
-//                             const Text(
-//                               "오늘의 공부 세션",
-//                               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-//                             ),
-//                             const SizedBox(height: 12),
-//                             Expanded(
-//                               child: Container(
-//                                 decoration: BoxDecoration(
-//                                   color: Colors.white,
-//                                   border: Border.all(color: Colors.grey.shade300),
-//                                   borderRadius: BorderRadius.circular(12),
-//                                 ),
-//                                 child: sessions.isEmpty
-//                                     ? const Center(child: Text("오늘 세션이 없습니다."))
-//                                     : buildTimeGrid(sessions),
-//                               ),
-//                             ),
-//                           ],
-//                         ),
-//                       ),
-//                     ),
-//                   ],
-//                 ),
-//               ),
-//             ),
-//           );
-//         },
-//       ),
-//     );
-//   }
-// }

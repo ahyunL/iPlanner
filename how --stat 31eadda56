@@ -1,0 +1,48 @@
+[33mcommit d3ff62a1e96c9e5a20656979aab5cefc255a4a9e[m
+Author: 송민경 <mandywin1204@gmail.com>
+Date:   Wed Aug 13 02:36:13 2025 +0900
+
+    병합 후 프론트엔드/백엔드 주요 변경사항
+
+ backend/routers/__pycache__/pdf.cpython-312.pyc    | Bin [31m22151[m -> [32m22150[m bytes
+ backend/routers/pdf.py                             |   5 [32m+[m[31m-[m
+ .../__pycache__/embedding_service.cpython-312.pyc  | Bin [31m2112[m -> [32m3142[m bytes
+ .../__pycache__/rag_service.cpython-312.pyc        | Bin [31m621[m -> [32m789[m bytes
+ .../__pycache__/schedule_plans.cpython-312.pyc     | Bin [31m8896[m -> [32m10073[m bytes
+ backend/services/embedding_service.py              |  51 [32m+[m[31m-[m
+ backend/services/rag_service.py                    |   8 [32m+[m
+ backend/services/schedule_plans.py                 | 340 [32m++++++++++++[m[31m--[m
+ frontend/lib/app_scaffold.dart                     |  92 [32m+[m[31m---[m
+ frontend/lib/app_tabs.dart                         |   1 [32m+[m
+ frontend/lib/data/auth_api.dart                    |  19 [32m+[m[31m-[m
+ frontend/lib/data/auth_token.dart                  |   1 [32m+[m
+ frontend/lib/data/env.dart                         |   5 [32m+[m
+ frontend/lib/data/notification_api.dart            |   4 [32m+[m[31m-[m
+ frontend/lib/data/token_store.dart                 |   1 [32m+[m
+ frontend/lib/edit_profile_page.dart                |  11 [32m+[m[31m-[m
+ frontend/lib/env.dart                              |   5 [32m+[m
+ frontend/lib/folder_home_page.dart                 | 155 [32m++++[m[31m--[m
+ frontend/lib/global_drawer.dart                    |   1 [32m+[m
+ frontend/lib/login_page.dart                       |   3 [32m+[m[31m-[m
+ frontend/lib/main.dart                             |  13 [32m+[m[31m-[m
+ frontend/lib/mypage.dart                           |   3 [32m+[m[31m-[m
+ frontend/lib/note_list_page.dart                   |  19 [32m+[m[31m-[m
+ frontend/lib/note_page.dart                        |   6 [32m+[m[31m-[m
+ frontend/lib/notification_bell.dart                |   1 [32m+[m
+ frontend/lib/notification_service.dart             |   3 [32m+[m[31m-[m
+ frontend/lib/notifications_page.dart               |   1 [32m+[m
+ frontend/lib/open_notifications.dart               |   1 [32m+[m
+ frontend/lib/password_check_page.dart              |   3 [32m+[m[31m-[m
+ frontend/lib/signup_page.dart                      |   3 [32m+[m[31m-[m
+ frontend/lib/signup_studytime.dart                 |   3 [32m+[m[31m-[m
+ frontend/lib/splash_page.dart                      |   2 [32m+[m[31m-[m
+ frontend/lib/study_result.dart                     |   1 [32m+[m
+ frontend/lib/study_session.dart                    |   1 [32m+[m
+ frontend/lib/study_type_page.dart                  |   5 [32m+[m[31m-[m
+ frontend/lib/studyplan.dart                        |  19 [32m+[m[31m-[m
+ frontend/lib/submain.dart                          |   8 [32m+[m[31m-[m
+ frontend/lib/timer.dart                            | 459 [32m+++++++++[m[31m---------[m
+ frontend/lib/timer_provider.dart                   | 523 [32m+++++++++++[m[31m----------[m
+ frontend/lib/todo_provider.dart                    |  10 [32m+[m[31m-[m
+ frontend/lib/utils/auth.dart                       |   7 [32m+[m
+ 41 files changed, 1049 insertions(+), 744 deletions(-)

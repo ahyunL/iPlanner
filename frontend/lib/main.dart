@@ -1,3 +1,4 @@
+
 import 'env.dart'; 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -283,7 +284,7 @@ class HomePageState extends State<HomePage> {
                   borderRadius: BorderRadius.circular(16),
                   clipBehavior: Clip.antiAlias,
                   child: _NotificationsPopoverBody(
-                    hostContext: context, // ✅ 페이지 컨텍스트 전달
+                    hostContext: context, //  페이지 컨텍스트 전달
                     onClose: (bool refresh) async {
                       _removeNotifPopover();
                       setState(() => _isPopoverOpen = false);
@@ -343,7 +344,7 @@ class HomePageState extends State<HomePage> {
     final TextEditingController titleController = TextEditingController();
     DateTime selectedDate = _focusedDay;
     Color selectedColor = Colors.blue;
-    if (!mounted) return;  // ✅ 안전성 확보
+    if (!mounted) return;  // 안전성 확보
 
     showDialog(
       context: context,
@@ -543,9 +544,9 @@ Future<void> fetchTodayTodos() async {
 
   // 3. 병합 및 subject 확인
 
-// ✅ 병합된 all 리스트 기준으로 그룹핑
+// 병합된 all 리스트 기준으로 그룹핑
 // 1. 개인 일정은 리스트 형태로 보관
-final personalTodos = [...personals]; // subject: '📌 개인 일정'
+final personalTodos = [...personals]; // subject: ' 개인 일정'
 
 // 2. 플랜은 과목별 그룹핑
 final groupedPlans = <String, List<Map<String, dynamic>>>{};
@@ -558,7 +559,7 @@ final subject = plan['subject'] ?? plan['subject_name'] ?? '기타';
 // 3. 전체 todayTodos는 개인 + 플랜을 시간순으로 정렬하거나 단순 병합
 final all = [...personalTodos, ...plans]; // 필요 시 전체 순서도 관리 가능
 
-// ✅ 상태 반영
+// 상태 반영
 setState(() {
   todayTodos = all;                  // 도넛 계산용 (flat list)
   subjectGroups = groupedPlans;     // UI 출력용 (과목별 그룹핑만)
@@ -738,52 +739,6 @@ setState(() {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // appBar: AppBar(
-      //   //title: const Text('Study Manager'),
-      //   actions: [
-      //     Stack(
-      //       clipBehavior: Clip.none,
-      //       children: [
-      //         CompositedTransformTarget(
-      //           link: _bellLink,
-      //           child: IconButton(
-      //             icon: Icon(
-      //               _unreadCount > 0
-      //                   ? Icons.notifications
-      //                   : Icons.notifications_none,
-      //               color: const Color(0xFF004377),
-      //             ),
-      //             onPressed: _toggleNotifPopover,
-      //             tooltip: '알림',
-      //           ),
-      //         ),
-      //         if (_unreadCount > 0)
-      //           Positioned(
-      //             right: 6,
-      //             top: 6,
-      //             child: Container(
-      //               padding: const EdgeInsets.symmetric(
-      //                 horizontal: 6,
-      //                 vertical: 2,
-      //               ),
-      //               decoration: BoxDecoration(
-      //                 color: Colors.redAccent,
-      //                 borderRadius: BorderRadius.circular(10),
-      //               ),
-      //               child: Text(
-      //                 _unreadCount > 99 ? '99+' : '$_unreadCount',
-      //                 style: const TextStyle(
-      //                   color: Colors.white,
-      //                   fontSize: 11,
-      //                   fontWeight: FontWeight.bold,
-      //                 ),
-      //               ),
-      //             ),
-      //           ),
-      //       ],
-      //     ),
-      //   ],
-      // ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -1040,14 +995,14 @@ Widget _buildTodoAndWeeklySection() {
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // ✅ 1. 개인 일정만 먼저 출력
+                      // 1. 개인 일정만 먼저 출력
                       ...todayTodos
                           .where((todo) => todo['subject'] == '📌 개인 일정')
                           .map((todo) => _buildStyledTodoTile(todo)),
 
                       const SizedBox(height: 12),
 
-                      // ✅ 2. 과목별 ExpansionTile 출력
+                      // 2. 과목별 ExpansionTile 출력
                       ...subjectGroups.entries.map((entry) {
                         return ExpansionTile(
                           title: Text(entry.key, style: const TextStyle(fontWeight: FontWeight.bold)),
@@ -1333,12 +1288,12 @@ Widget _buildTodoAndWeeklySection() {
     final headers = await _headers();
     final dateStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
 
-    final res = await http.post(  // ✅ POST로 변경했는지 확인
+    final res = await http.post(  // POST로 변경했는지 확인
       Uri.parse('$baseUrl/study-daily/achievement'),
       headers: headers,
       body: json.encode({
         'study_date': dateStr,
-        'daily_achievement': (achievement * 100).round(),  // ✅ 소수점 → 정수 %
+        'daily_achievement': (achievement * 100).round(),  // 소수점 → 정수 %
       }),
     );
 
@@ -1375,7 +1330,7 @@ Widget _buildTodoAndWeeklySection() {
 // ─────────────────────────────────────────────────────────────
 class _NotificationsPopoverBody extends StatelessWidget {
   final void Function(bool refresh) onClose;
-  final BuildContext hostContext; // ✅ 페이지 컨텍스트
+  final BuildContext hostContext; // 페이지 컨텍스트
   const _NotificationsPopoverBody({
     super.key,
     required this.onClose,

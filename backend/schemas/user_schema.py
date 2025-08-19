@@ -47,7 +47,7 @@ class UserProfile(BaseModel):
     study_time_sat: Optional[int]
     study_time_sun: Optional[int]
     
-    # 🔹 user_profile 테이블 조인
+    # user_profile 테이블 조인
     profile: Optional[UserSubProfile]
 
     class Config:

@@ -16,6 +16,18 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController idController = TextEditingController();
   final TextEditingController pwController = TextEditingController();
 
+  // 8월 13일 인코딩 오류때문에 추가. JSON 파싱 보조: JSON이 아니면 안전하게 fallback
+  Map<String, dynamic> _safeJsonDecode(String s) {
+    try {
+      final decoded = jsonDecode(s);
+      if (decoded is Map<String, dynamic>) return decoded;
+      return {'detail': s}; // 배열 또는 다른 형식이면 본문 문자열을 detail에 담음
+    } catch (_) {
+      return {'detail': s}; // JSON 아님 → 원문을 보여줌
+    }
+  }
+
+  //8월 13일 민경 함수 교체.
   Future<void> login(BuildContext context) async {
     final loginId = idController.text.trim();
     final password = pwController.text.trim();
@@ -28,23 +40,33 @@ class _LoginPageState extends State<LoginPage> {
     try {
       final response = await http.post(
         Uri.parse('${Env.baseUrl}/auth/login'),
-        headers: {'Content-Type': 'application/json'},
+        headers: const {
+          'Content-Type': 'application/json', // 요청은 그대로
+          // 'Accept': 'application/json'  // 선택: 서버가 에러도 JSON으로 주도록 힌트
+        },
         body: jsonEncode({'login_id': loginId, 'password': password}),
       );
 
-      if (response.statusCode == 200) {
-        final responseData = jsonDecode(response.body);
-        final accessToken = responseData['access_token'];
+      // ✅ 항상 bodyBytes를 UTF-8로 디코딩한 뒤 JSON 파싱
+      String text = utf8.decode(response.bodyBytes);
 
-        // ✅ accessToken 저장
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = _safeJsonDecode(text);
+        final accessToken = data['access_token']?.toString();
+        if (accessToken == null || accessToken.isEmpty) {
+          _showErrorDialog(context, '로그인 응답에 토큰이 없습니다.');
+          return;
+        }
+
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('accessToken', accessToken);
-       // print('✅ 저장된 accessToken: $accessToken');
-
         Navigator.pushReplacementNamed(context, '/home');
       } else {
-        final errorData = jsonDecode(response.body);
-        _showErrorDialog(context, '로그인 실패: ${errorData['detail']}');
+        // 실패 응답도 동일하게 처리 (한글 깨짐 방지)
+        final Map<String, dynamic> err = _safeJsonDecode(text);
+        final msg = (err['detail']?.toString() ?? err['message']?.toString() ?? '로그인 실패')
+            .replaceAll(RegExp(r'^\s+|\s+$'), '');
+        _showErrorDialog(context, '로그인 실패: $msg');
       }
     } catch (e) {
       _showErrorDialog(context, '서버 연결 실패: $e');
@@ -199,3 +221,4 @@ Future<void> saveAccessToken(String token) async {
   final prefs = await SharedPreferences.getInstance();
   await prefs.setString('accessToken', token);
 }
+

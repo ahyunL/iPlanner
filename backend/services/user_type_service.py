@@ -1,24 +1,21 @@
 # services/user_type_service.py
+from __future__ import annotations
+
 from sqlalchemy.orm import Session
-from models.user_type_history import UserTypeHistory
-from typing import Optional
-
-import torch
-import pickle
-import numpy as np
-from trained_models.timesnet2 import TimesNet  #  모델 클래스 위치
-from fastapi import HTTPException
-from models.user_study_daily import UserStudyDaily
+from typing import Optional, List
 from datetime import date, timedelta
+from fastapi import HTTPException
+
+from models.user_study_daily import UserStudyDaily
 from models.user_type_history import UserTypeHistory
-from typing import List, Optional
+
+# ✅ XGBoost 러너(3-헤드) + 주간 요약
+from trained_models.runtime import predict_user_type_xgb, summarize_week
 
 
-MODEL = None
-ENCODERS = None
-SCALER = None
-DEVICE = None
-
+# ─────────────────────────────────────────────────────────────
+# 최근 2주 비교 텍스트
+# ─────────────────────────────────────────────────────────────
 def compare_latest_user_type_trend(user_id: int, db: Session) -> Optional[str]:
     histories = (
         db.query(UserTypeHistory)
@@ -27,13 +24,11 @@ def compare_latest_user_type_trend(user_id: int, db: Session) -> Optional[str]:
         .limit(2)
         .all()
     )
-
     if len(histories) < 2:
-        return None  # 아직 비교할 데이터 부족
+        return None
 
     this_week, last_week = histories[0], histories[1]
     changes = []
-
     if this_week.sincerity != last_week.sincerity:
         changes.append(f"성실도: {last_week.sincerity} → {this_week.sincerity}")
     if this_week.repetition != last_week.repetition:
@@ -43,210 +38,125 @@ def compare_latest_user_type_trend(user_id: int, db: Session) -> Optional[str]:
 
     if not changes:
         return "이번 주 학습 유형은 지난 주와 동일합니다."
-    else:
-        return "\n".join(changes)
+    return "\n".join(changes)
 
 
+# ─────────────────────────────────────────────────────────────
+# DB → 7×7 매트릭스 생성 (총/오전/오후/저녁/심야/반복/달성률)
+# ─────────────────────────────────────────────────────────────
+def _week_dates(week_start: date) -> List[date]:
+    return [week_start + timedelta(days=i) for i in range(7)]
 
+def _row_from_daily(r: UserStudyDaily) -> List[float]:
+    return [
+        float(r.total_minutes or 0),     # 총학습시간(분)
+        float(r.morning_minutes or 0),   # 오전(분)
+        float(r.afternoon_minutes or 0), # 오후(분)
+        float(r.evening_minutes or 0),   # 저녁(분)
+        float(r.night_minutes or 0),     # 심야(분)
+        float(r.repetition or 0),        # 반복횟수
+        float(r.daily_achievement or 0), # 일일달성률(%)
+    ]
 
-# 설정 클래스
-class Configs:
-    def __init__(self):
-        self.task_name = 'classification'
-        self.seq_len = 7
-        self.label_len = 0
-        self.pred_len = 0
-        self.enc_in = 7
-        self.d_model = 64
-        self.embed = 'timeF'
-        self.freq = 'd'
-        self.dropout = 0.2
-        self.e_layers = 2
-        self.top_k = 3
-        self.d_ff = 128
-        self.num_kernels = 6
-        self.num_class = 9
-
-
-
-def load_model_and_encoders():
-    global MODEL, ENCODERS, SCALER, DEVICE
-    if all(v is not None for v in (MODEL, ENCODERS, SCALER, DEVICE)):
-        return MODEL, ENCODERS['sincerity'], ENCODERS['repetition'], ENCODERS['timeslot'], SCALER, DEVICE
-
-    config = Configs()
-    DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    MODEL = TimesNet(config).to(DEVICE)
-
-    try:
-        MODEL.load_state_dict(torch.load("trained_models/best_model.pth", map_location=DEVICE))
-        MODEL.eval()
-    except Exception:
-        raise HTTPException(status_code=500, detail="모델 파일을 불러오지 못했습니다.")
-
-    try:
-        with open("trained_models/label_encoders.pkl", "rb") as f:
-            ENCODERS = pickle.load(f)
-    except Exception:
-        raise HTTPException(status_code=500, detail="인코더 파일을 불러오지 못했습니다.")
-
-    try:
-        import joblib
-        SCALER = joblib.load("trained_models/scaler.pkl")
-    except Exception:
-        raise HTTPException(status_code=500, detail="스케일러 파일을 불러오지 못했습니다.")
-
-    return MODEL, ENCODERS['sincerity'], ENCODERS['repetition'], ENCODERS['timeslot'], SCALER, DEVICE
-
-
-
-
-def predict_user_type(sample_data: list[list[float]]):
-    if len(sample_data) != 7 or any(len(row) != 7 for row in sample_data):
-        raise HTTPException(status_code=400, detail="입력 데이터는 7일치 * 7개 feature가 필요합니다.")
-
-    # 스케일러까지 함께 받기
-    model, le1, le2, le3, scaler, device = load_model_and_encoders()
-
-    # (7,7) → (1,7,7)
-    arr = np.array(sample_data, dtype=np.float32).reshape(1, 7, 7)
-
-    # 스케일 적용: (1,7,7) → (7,7) → (49,7) 에 transform → 다시 (1,7,7)
-    flat = arr.reshape(-1, 7)            # (49, 7)
-    flat_scaled = scaler.transform(flat) # (49, 7)
-    arr_scaled = flat_scaled.reshape(1, 7, 7)
-
-    X_input = torch.tensor(arr_scaled, dtype=torch.float32).to(device)
-    x_mark = torch.ones((1, 7), dtype=torch.float32).to(device)
-
-    with torch.no_grad():
-        pred = model(X_input, x_mark, None, None)  # (1, 9)
-        out1, out2, out3 = torch.split(pred, [3, 2, 4], dim=1)
-
-        pred1 = le1.inverse_transform(torch.argmax(out1, dim=1).cpu().numpy())[0]
-        pred2 = le2.inverse_transform(torch.argmax(out2, dim=1).cpu().numpy())[0]
-        pred3 = le3.inverse_transform(torch.argmax(out3, dim=1).cpu().numpy())[0]
-
-    return {
-        "성실도": pred1,
-        "반복형": pred2,
-        "시간대": pred3
-    }
-
-
-
-def auto_predict_and_save_user_type(user_id: int, db: Session):
-    today = date.today()
-
-    # 최근 7일(과거→현재 순서)
-    days: List[date] = [today - timedelta(days=i) for i in range(6, -1, -1)]
-
-    # DB에서 최근 7일 가져오기
-    records = (
+def build_week_7x7_from_db(db: Session, user_id: int, week_start: date) -> List[List[float]]:
+    days = _week_dates(week_start)
+    rows = (
         db.query(UserStudyDaily)
-        .filter(UserStudyDaily.user_id == user_id, UserStudyDaily.study_date.in_(days))
+        .filter(
+            UserStudyDaily.user_id == user_id,
+            UserStudyDaily.study_date >= days[0],
+            UserStudyDaily.study_date <= days[-1],
+        )
         .all()
     )
-    by_date = {r.study_date: r for r in records}
+    by_date = {r.study_date: r for r in rows}
 
-    # ▶ feature 순서 맞춰 벡터 생성
-    def to_vec(r: UserStudyDaily) -> List[float]:
-        return [
-            float(r.total_minutes),       # 총학습시간(분)
-            float(r.morning_minutes),     # 오전(분)
-            float(r.afternoon_minutes),   # 오후(분)
-            float(r.evening_minutes),     # 저녁(분)
-            float(r.night_minutes),       # 심야(분)
-            float(r.repetition),          # 반복횟수
-            float(r.daily_achievement),   # 일일달성률(%)
-        ]
-
-    # 원시 입력 + 결측 마스크
-    input_data: List[Optional[List[float]]] = []
-    is_missing: List[bool] = []
+    mat: List[List[float]] = []
     for d in days:
-        if d in by_date:
-            input_data.append(to_vec(by_date[d]))
-            is_missing.append(False)
-        else:
-            input_data.append(None)
-            is_missing.append(True)
+        r = by_date.get(d)
+        mat.append(_row_from_daily(r) if r else [0.0] * 7)
+    return mat
 
-    # 평균으로 결측 채우기
-    observed = [v for v in input_data if v is not None]
 
-    def colwise_mean(rows: List[List[float]]) -> List[float]:
-        if not rows:
-            return [0.0] * 7
-        n, m = len(rows), len(rows[0])
-        return [sum(r[j] for r in rows) / n for j in range(m)]
+# ─────────────────────────────────────────────────────────────
+# 예측 API (입력 7×7 직접 전달)
+# ─────────────────────────────────────────────────────────────
+def predict_user_type(sample_data: List[List[float]]):
+    """
+    입력: 7일 × 7특징(총/오전/오후/저녁/심야/반복/달성률)
+    출력 키: '성실도','반복형','시간대'
+    """
+    if len(sample_data) != 7 or any(len(row) != 7 for row in sample_data):
+        raise HTTPException(status_code=400, detail="입력 데이터는 7일치 × 7개 feature가 필요합니다.")
 
-    base_mean = colwise_mean(observed)
-    for i in range(len(input_data)):
-        if input_data[i] is None:
-            input_data[i] = base_mean.copy()
+    # Δ + 요일(sin/cos) 전처리는 runtime 내부에서 처리됨
+    p = predict_user_type_xgb(sample_data)
+    return {"성실도": p["성실도"], "반복형": p["반복형"], "시간대": p["시간대"]}
 
-    # 결측일 집계
-    missing_days = sum(is_missing)
+
+# ─────────────────────────────────────────────────────────────
+# 자동 예측 + 저장 (주간 패턴 반환)
+# ─────────────────────────────────────────────────────────────
+def auto_predict_and_save_user_type(user_id: int, db: Session):
+    today = date.today()
+    week_start = today - timedelta(days=today.weekday())  # 월요일 시작
+    mat7x7 = build_week_7x7_from_db(db, user_id, week_start)
+
+    # 주간 요약
+    summary = summarize_week(mat7x7)
+    missing_days = summary.get("missing_days", 0)
 
     # 모델 예측
-    prediction = predict_user_type(input_data)
+    p = predict_user_type_xgb(mat7x7)
 
-    # 이번 주 월요일
-    week_start = today - timedelta(days=today.weekday())
-
-    # 중복 저장 방지
+    # 저장(기존 스키마)
     existing = (
         db.query(UserTypeHistory)
-        .filter(
-            UserTypeHistory.user_id == user_id,
-            UserTypeHistory.week_start_date == week_start,
-        )
+        .filter(UserTypeHistory.user_id == user_id,
+                UserTypeHistory.week_start_date == week_start)
         .first()
     )
     if existing:
-        existing.sincerity = prediction["성실도"]
-        existing.repetition = prediction["반복형"]
-        existing.timeslot = prediction["시간대"]
-        db.commit()
+        existing.sincerity = p["성실도"]
+        existing.repetition = p["반복형"]
+        existing.timeslot  = p["시간대"]
+        db.commit(); db.refresh(existing)
     else:
-        new_entry = UserTypeHistory(
-            user_id=user_id,
-            week_start_date=week_start,
-            sincerity=prediction["성실도"],
-            repetition=prediction["반복형"],
-            timeslot=prediction["시간대"],
+        rec = UserTypeHistory(
+            user_id=user_id, week_start_date=week_start,
+            sincerity=p["성실도"], repetition=p["반복형"], timeslot=p["시간대"]
         )
-        db.add(new_entry)
-        db.commit()
+        db.add(rec); db.commit(); db.refresh(rec)
 
     return {
         "message": "자동 예측 및 저장 완료",
-        "prediction": prediction,
+        "prediction": p,
+        "week_start_date": week_start.isoformat(),
         "missing_days": missing_days,
-        "filled_input_preview": input_data,
+        "raw_pattern": summary.get("raw_pattern"),
+        "repetition_count": summary.get("repetition_count"),
+        "weekend_share": summary.get("weekend_share"),
+        "peak_day": summary.get("peak_day"),
+        "burstiness": summary.get("burstiness"),
+        "filled_input_preview": mat7x7,
     }
 
 
-
+# ─────────────────────────────────────────────────────────────
+# 데이터 부족 시 timeslot 폴백 (최근 7일 최댓값)
+# ─────────────────────────────────────────────────────────────
 def auto_predict_and_save_user_type_with_fallback(
     user_id: int,
     db: Session,
-    minutes_threshold: int = 60,     # 총 60분 이하이면 불안정
-    active_days_threshold: int = 2,  # 기록일 2일 이하이면 불안정
+    minutes_threshold: int = 60,
+    active_days_threshold: int = 2,
 ):
-    """기존 auto_predict_and_save_user_type 실행 후,
-    이번 주 데이터가 너무 적으면 timeslot만 최근7일 최빈값으로 덮어씌우고 DB/응답에 반영.
-    """
-    # 1) 일단 기존 로직(모델 예측 + 저장) 수행
     result = auto_predict_and_save_user_type(user_id, db)
 
-    # 2) 이번 주 구간(월~일) 계산
     today = date.today()
-    week_start = today - timedelta(days=today.weekday())  # Monday
+    week_start = today - timedelta(days=today.weekday())
     week_end = week_start + timedelta(days=6)
 
-    # 이번 주 user_study_daily 합/활성일 계산
     week_rows = (
         db.query(UserStudyDaily)
         .filter(
@@ -259,7 +169,6 @@ def auto_predict_and_save_user_type_with_fallback(
     total_minutes_week = sum(r.total_minutes or 0 for r in week_rows)
     active_days = sum(1 for r in week_rows if (r.total_minutes or 0) > 0)
 
-    # 3) 기준 만족하면 → 최근 7일 합계로 최빈 시간대 산출
     if total_minutes_week <= minutes_threshold or active_days <= active_days_threshold:
         last7_start = today - timedelta(days=6)
         last7_rows = (
@@ -271,17 +180,14 @@ def auto_predict_and_save_user_type_with_fallback(
             )
             .all()
         )
-
         totals = {
             "오전": sum(r.morning_minutes or 0 for r in last7_rows),
             "오후": sum(r.afternoon_minutes or 0 for r in last7_rows),
             "저녁": sum(r.evening_minutes or 0 for r in last7_rows),
             "심야": sum(r.night_minutes or 0 for r in last7_rows),
         }
-        # 전부 0이면 기본값은 '오전'
         fallback_timeslot = max(totals, key=totals.get) if any(totals.values()) else "오전"
 
-        # 4) 방금 저장된 이번 주 UserTypeHistory 찾아서 timeslot만 교체
         uth = (
             db.query(UserTypeHistory)
             .filter(
@@ -293,13 +199,12 @@ def auto_predict_and_save_user_type_with_fallback(
         if uth:
             uth.timeslot = fallback_timeslot
             db.commit()
+            db.refresh(uth)
 
-        # 5) 응답 객체도 교체 및 사유 태그
         if isinstance(result, dict):
-            # 예상 result 구조: {'prediction': {'성실도':..., '반복형':..., '시간대':...}, 'missing_days':..., ...}
-            prediction = result.get("prediction", {})
-            prediction["시간대"] = fallback_timeslot
-            result["prediction"] = prediction
+            pred = result.get("prediction", {})
+            pred["시간대"] = fallback_timeslot
+            result["prediction"] = pred
             result["fallback_used"] = True
             result["fallback_reason"] = {
                 "total_minutes_week": total_minutes_week,
@@ -308,10 +213,11 @@ def auto_predict_and_save_user_type_with_fallback(
                 "active_days_threshold": active_days_threshold,
                 "basis": "최근 7일 합계 최빈 시간대",
             }
-
     else:
-        # 기준 미충족 → 모델 값 그대로 사용
         if isinstance(result, dict):
             result["fallback_used"] = False
 
     return result
+
+
+

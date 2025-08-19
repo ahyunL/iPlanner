@@ -19,7 +19,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
-// ✅ MyPage로 이동
+// MyPage로 이동
 import 'mypage.dart';
 
 // -------------------- API 모델 & 함수 (전역) --------------------
@@ -252,6 +252,12 @@ class _StudyTypePageState extends State<StudyTypePage> {
   String? _cardRepetition; // 반복형
   String? _cardTimeslot; // 시간대
   String? _feedbackText; // GPT 피드백
+
+  int _weekdayIndex(DateTime d) {
+    // Dart weekday: 월=1 ... 일=7 → 월=0 ... 일=6로 변환
+    return (d.weekday + 6) % 7;
+  }
+
 
   @override
   void initState() {
@@ -488,111 +494,116 @@ class _StudyTypePageState extends State<StudyTypePage> {
                                         child: Padding(
                                           padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
                                           child: hasAnyStudy
-                                              ? BarChart(
-                                                  BarChartData(
-                                                    maxY: 8,
-                                                    minY: 0,
-                                                    barTouchData: BarTouchData(
-                                                      enabled: true,
-                                                      handleBuiltInTouches: true,
-                                                      touchTooltipData: BarTouchTooltipData(
-                                                        tooltipRoundedRadius: 8,
-                                                        tooltipPadding: const EdgeInsets.symmetric(
-                                                          horizontal: 8,
-                                                          vertical: 6,
-                                                        ),
-                                                        getTooltipItem: (group, groupIndex, rod, rodIndex) {
-                                                          const days = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
-                                                          return BarTooltipItem(
-                                                            '${days[group.x.toInt() % 7]}\n'
-                                                            '${rod.toY.toStringAsFixed(1)}h',
-                                                            const TextStyle(
-                                                              color: Colors.black,
-                                                              fontWeight: FontWeight.w700,
-                                                            ),
-                                                          );
-                                                        },
-                                                      ),
-                                                      touchCallback: (event, response) {
-                                                        if (!event.isInterestedForInteractions || response?.spot == null) {
-                                                          setState(() => _selectedBarIndex = null);
-                                                          return;
-                                                        }
-                                                        final idx = response!.spot!.touchedBarGroupIndex;
-                                                        setState(() => _selectedBarIndex = idx);
-                                                        _onBarSelected(idx);
-                                                      },
-                                                    ),
-                                                    gridData: FlGridData(
-                                                      show: true,
-                                                      drawVerticalLine: true,
-                                                      horizontalInterval: 1,
-                                                      getDrawingHorizontalLine: (v) => FlLine(
-                                                        color: Colors.grey.withOpacity(0.18),
-                                                        strokeWidth: 1,
-                                                        dashArray: const [4, 4],
-                                                      ),
-                                                      getDrawingVerticalLine: (v) => FlLine(
-                                                        color: Colors.grey.withOpacity(0.12),
-                                                        strokeWidth: 1,
-                                                      ),
-                                                    ),
-                                                    borderData: FlBorderData(show: false),
-                                                    titlesData: FlTitlesData(
-                                                      rightTitles: const AxisTitles(
-                                                        sideTitles: SideTitles(showTitles: false),
-                                                      ),
-                                                      topTitles: const AxisTitles(
-                                                        sideTitles: SideTitles(showTitles: false),
-                                                      ),
-                                                      leftTitles: AxisTitles(
-                                                        sideTitles: SideTitles(
-                                                          showTitles: true,
-                                                          reservedSize: 24,
-                                                          interval: 1,
-                                                          getTitlesWidget: (v, _) => Text(
-                                                            v.toInt().toString(),
-                                                            style: const TextStyle(fontSize: 10, color: Colors.black),
+                                              ? Builder(
+                                                  builder: (_) {
+                                                    // --- 요일별 집계 준비 (월=0 ... 일=6) ---
+                                                    final List<double> hoursByWeekday = List<double>.filled(7, 0.0);
+                                                    final List<DateTime?> dateByWeekday = List<DateTime?>.filled(7, null);
+
+                                                    for (final d in _last7) {
+                                                      final i = _weekdayIndex(d.studyDate);
+                                                      hoursByWeekday[i] = d.totalMinutes / 60.0;
+                                                      dateByWeekday[i] = d.studyDate;
+                                                    }
+
+                                                    return BarChart(
+                                                      BarChartData(
+                                                        maxY: 8,
+                                                        minY: 0,
+                                                        barTouchData: BarTouchData(
+                                                          enabled: true,
+                                                          handleBuiltInTouches: true,
+                                                          touchTooltipData: BarTouchTooltipData(
+                                                            tooltipRoundedRadius: 8,
+                                                            tooltipPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                                            getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                                                              const days = ['MON','TUE','WED','THU','FRI','SAT','SUN'];
+                                                              return BarTooltipItem(
+                                                                '${days[group.x.toInt() % 7]}\n${rod.toY.toStringAsFixed(1)}h',
+                                                                const TextStyle(color: Colors.black, fontWeight: FontWeight.w700),
+                                                              );
+                                                            },
                                                           ),
-                                                        ),
-                                                      ),
-                                                      bottomTitles: AxisTitles(
-                                                        sideTitles: SideTitles(
-                                                          showTitles: true,
-                                                          getTitlesWidget: (value, _) {
-                                                            const days = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
-                                                            return Padding(
-                                                              padding: const EdgeInsets.only(top: 4),
-                                                              child: Text(
-                                                                days[value.toInt() % 7],
-                                                                style: const TextStyle(fontSize: 10, color: Colors.black),
-                                                              ),
-                                                            );
+                                                          touchCallback: (event, response) {
+                                                            if (!event.isInterestedForInteractions || response?.spot == null) {
+                                                              setState(() => _selectedBarIndex = null);
+                                                              return;
+                                                            }
+                                                            final idx = response!.spot!.touchedBarGroupIndex;
+                                                            setState(() => _selectedBarIndex = idx);
+
+                                                            final dt = dateByWeekday[idx];
+                                                            if (dt != null) {
+                                                              _onBarSelectedByDate(dt);
+                                                            }
                                                           },
                                                         ),
-                                                      ),
-                                                    ),
-                                                    alignment: BarChartAlignment.spaceAround,
-                                                    barGroups: List.generate(7, (index) {
-                                                      final heights = List<double>.generate(7, (i) {
-                                                        if (i >= _last7.length) return 0.0;
-                                                        return _last7[i].totalMinutes / 60.0;
-                                                      });
-                                                      final selected = _selectedBarIndex == index;
-                                                      return BarChartGroupData(
-                                                        x: index,
-                                                        barsSpace: 2,
-                                                        barRods: [
-                                                          BarChartRodData(
-                                                            toY: heights[index],
-                                                            width: selected ? 14 : 12,
-                                                            borderRadius: BorderRadius.circular(6),
-                                                            color: selected ? Colors.black87 : Colors.grey.shade700,
+                                                        gridData: FlGridData(
+                                                          show: true,
+                                                          drawVerticalLine: true,
+                                                          horizontalInterval: 1,
+                                                          getDrawingHorizontalLine: (v) => FlLine(
+                                                            color: Colors.grey.withOpacity(0.18),
+                                                            strokeWidth: 1,
+                                                            dashArray: const [4, 4],
                                                           ),
-                                                        ],
-                                                      );
-                                                    }),
-                                                  ),
+                                                          getDrawingVerticalLine: (v) => FlLine(
+                                                            color: Colors.grey.withOpacity(0.12),
+                                                            strokeWidth: 1,
+                                                          ),
+                                                        ),
+                                                        borderData: FlBorderData(show: false),
+                                                        titlesData: FlTitlesData(
+                                                          rightTitles: const AxisTitles(
+                                                            sideTitles: SideTitles(showTitles: false),
+                                                          ),
+                                                          topTitles: const AxisTitles(
+                                                            sideTitles: SideTitles(showTitles: false),
+                                                          ),
+                                                          leftTitles: AxisTitles(
+                                                            sideTitles: SideTitles(
+                                                              showTitles: true,
+                                                              reservedSize: 24,
+                                                              interval: 1,
+                                                              getTitlesWidget: (v, _) => Text(
+                                                                v.toInt().toString(),
+                                                                style: const TextStyle(fontSize: 10, color: Colors.black),
+                                                              ),
+                                                            ),
+                                                          ),
+                                                          bottomTitles: AxisTitles(
+                                                            sideTitles: SideTitles(
+                                                              showTitles: true,
+                                                              getTitlesWidget: (value, _) {
+                                                                const days = ['MON','TUE','WED','THU','FRI','SAT','SUN'];
+                                                                final i = value.toInt().clamp(0, 6);
+                                                                return Padding(
+                                                                  padding: const EdgeInsets.only(top: 4),
+                                                                  child: Text(days[i], style: const TextStyle(fontSize: 10, color: Colors.black)),
+                                                                );
+                                                              },
+                                                            ),
+                                                          ),
+                                                        ),
+                                                        alignment: BarChartAlignment.spaceAround,
+                                                        barGroups: List.generate(7, (i) {
+                                                          final selected = _selectedBarIndex == i;
+                                                          return BarChartGroupData(
+                                                            x: i,
+                                                            barsSpace: 2,
+                                                            barRods: [
+                                                              BarChartRodData(
+                                                                toY: hoursByWeekday[i],
+                                                                width: selected ? 14 : 12,
+                                                                borderRadius: BorderRadius.circular(6),
+                                                                color: selected ? Colors.black87 : Colors.grey.shade700,
+                                                              ),
+                                                            ],
+                                                          );
+                                                        }),
+                                                      ),
+                                                    );
+                                                  },
                                                 )
                                               : Center(
                                                   child: Text(
@@ -602,6 +613,7 @@ class _StudyTypePageState extends State<StudyTypePage> {
                                                   ),
                                                 ),
                                         ),
+
                                       )
                                     ],
                                   ),
@@ -843,6 +855,40 @@ class _StudyTypePageState extends State<StudyTypePage> {
     }
   }
 
+  Future<void> _onBarSelectedByDate(DateTime date) async {
+    try {
+      await apiSaveDailyAchievement(date, 100);
+
+      // _last7 내부 데이터도 반영
+      final k = _last7.indexWhere((e) =>
+          e.studyDate.year == date.year &&
+          e.studyDate.month == date.month &&
+          e.studyDate.day == date.day);
+      if (k != -1) {
+        final d = _last7[k];
+        _last7[k] = UserStudyDailyModel(
+          userId: d.userId,
+          studyDate: d.studyDate,
+          totalMinutes: d.totalMinutes,
+          morningMinutes: d.morningMinutes,
+          afternoonMinutes: d.afternoonMinutes,
+          eveningMinutes: d.eveningMinutes,
+          nightMinutes: d.nightMinutes,
+          repetition: d.repetition,
+          dailyAchievement: 100,
+        );
+        setState(() {}); // 그래프 갱신
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('달성률 저장 실패: $e')),
+        );
+      }
+    }
+  }
+
+
   Future<void> _runAutoPredictAndShow() async {
     setState(() => _loading = true);
     try {
@@ -1070,3 +1116,5 @@ class _SummaryCard extends StatelessWidget {
     );
   }
 }
+
+

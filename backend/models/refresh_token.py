@@ -32,19 +32,3 @@ class RefreshToken(Base):
     # 관계 설정 (User 테이블과 연결)
     user = relationship("User", back_populates="refresh_tokens")
 
-# 민경 언니 파일 - ID의 index=true만 다름
-# gpt에 문의했을 때 index=true는 결국 PK로 대체할 수 있으므로,autoincrement으로 작성함
-
-'''class RefreshToken(Base):
-    __tablename__ = "refresh_token"
-
-    id = Column(Integer, primary_key=True, index=True)  # ERD: id
-    user_id = Column(Integer, ForeignKey("user.user_id", ondelete="CASCADE"), nullable=False)
-    token = Column(String(500), nullable=False)  # ERD: varchar(500)
-
-    created_at = Column(DateTime, default=datetime.utcnow)  # ERD: datetime
-    expires_at = Column(DateTime)  # ERD: datetime
-
-    # 관계 설정
-    user = relationship("User", back_populates="refresh_tokens")
-'''

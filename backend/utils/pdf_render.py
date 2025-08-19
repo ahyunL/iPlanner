@@ -23,7 +23,7 @@ def render_pdf_page(pdf_path: str, page_number: int) -> dict:
         height = page.rect.height
         aspect_ratio = height / width if width != 0 else 1.0
 
-        # ✅ 비율에 따라 동적 matrix 설정 (기본 해상도 기준)
+        # 비율에 따라 동적 matrix 설정 (기본 해상도 기준)
         scale_factor = 2.0  # 필요에 따라 조절
         matrix = fitz.Matrix(scale_factor, scale_factor)
         pix = page.get_pixmap(matrix=matrix)

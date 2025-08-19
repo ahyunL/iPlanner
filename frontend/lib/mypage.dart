@@ -162,66 +162,6 @@ class _MyPageState extends State<MyPage> {
     return Scaffold(
       backgroundColor: const Color(0xFFF2F4F8),
 
-      // 필요 시 알림 아이콘을 AppBar에 복구하려면 이 블록 주석 해제
-      // appBar: AppBar(
-      //   backgroundColor: Colors.white,
-      //   elevation: 0,
-      //   iconTheme: const IconThemeData(color: Colors.black),
-      //   title: const Text('마이 페이지', style: TextStyle(color: Colors.black)),
-      //   actions: [
-      //     Stack(
-      //       clipBehavior: Clip.none,
-      //       children: [
-      //         CompositedTransformTarget(
-      //           link: _bellLink,
-      //           child: ValueListenableBuilder<int>(
-      //             valueListenable: NotificationService.instance.unreadCount,
-      //             builder: (_, count, __) {
-      //               final hasUnread = count > 0;
-      //               return IconButton(
-      //                 tooltip: '알림',
-      //                 icon: Icon(
-      //                   hasUnread
-      //                       ? Icons.notifications
-      //                       : Icons.notifications_none,
-      //                   color: const Color(0xFF004377),
-      //                 ),
-      //                 onPressed: _toggleNotifPopover,
-      //               );
-      //             },
-      //           ),
-      //         ),
-      //         Positioned(
-      //           right: 6,
-      //           top: 6,
-      //           child: ValueListenableBuilder<int>(
-      //             valueListenable: NotificationService.instance.unreadCount,
-      //             builder: (_, count, __) {
-      //               if (count <= 0) return const SizedBox.shrink();
-      //               return Container(
-      //                 padding:
-      //                     const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      //                 decoration: BoxDecoration(
-      //                   color: Colors.redAccent,
-      //                   borderRadius: BorderRadius.circular(10),
-      //                 ),
-      //                 child: Text(
-      //                   count > 99 ? '99+' : '$count',
-      //                   style: const TextStyle(
-      //                     color: Colors.white,
-      //                     fontSize: 11,
-      //                     fontWeight: FontWeight.bold,
-      //                   ),
-      //                 ),
-      //               );
-      //             },
-      //           ),
-      //         ),
-      //       ],
-      //     ),
-      //   ],
-      // ),
-
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(

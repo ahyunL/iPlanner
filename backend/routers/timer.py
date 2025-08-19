@@ -149,5 +149,51 @@ def get_timer_sessions_by_date(
     return sessions
 
 
+# 8월 13일 민경 아래 함수들 추가. 
+
+# === 세션 단건 삭제 ===
+@router.delete("/sessions/{timer_id}")
+def delete_timer_session(
+    timer_id: int,
+    db: Session = Depends(get_db),
+    current_user: user_model.User = Depends(get_current_user),
+):
+    session = (
+        db.query(Timer)
+        .filter(Timer.timer_id == timer_id, Timer.user_id == current_user.user_id)
+        .first()
+    )
+    if not session:
+        raise HTTPException(status_code=404, detail="세션을 찾을 수 없습니다.")
+
+    study_date = session.study_date
+    db.delete(session)
+    db.commit()
+
+    # 일(日) 요약 재계산
+    upsert_user_study_daily(current_user.user_id, study_date, db)
+
+    return {"message": "세션 삭제 완료", "deleted_id": timer_id}
 
 
+# === 특정 날짜의 모든 세션 일괄 삭제(옵션) ===
+@router.delete("/sessions/by-date/{study_date}")
+def delete_sessions_by_date(
+    study_date: date,
+    db: Session = Depends(get_db),
+    current_user: user_model.User = Depends(get_current_user),
+):
+    sessions = (
+        db.query(Timer)
+        .filter(Timer.user_id == current_user.user_id, Timer.study_date == study_date)
+        .all()
+    )
+    if not sessions:
+        raise HTTPException(status_code=404, detail="삭제할 세션이 없습니다.")
+
+    for s in sessions:
+        db.delete(s)
+    db.commit()
+
+    upsert_user_study_daily(current_user.user_id, study_date, db)
+    return {"message": "해당 날짜 세션 삭제 완료", "deleted_count": len(sessions)}

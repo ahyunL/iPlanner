@@ -89,7 +89,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 # ✅ 데이터베이스 및 모델 import
 from db import Base
-from models import user, subject, plan, row_plan, refresh_token  # 이 줄에 오류 없도록 models/*.py가 완성돼 있어야 함
+from models import user, subject, plan, row_plan, refresh_token, user_type_history,user_study_daily,user_profile,timer, personal_schedule,pdf_pages,pdf_notes,pdf_folder,pdf_annotations,notification  # 이 줄에 오류 없도록 models/*.py가 완성돼 있어야 함
 
 # ✅ MetaData 설정
 target_metadata = Base.metadata
@@ -126,6 +126,7 @@ def run_migrations_online():
         context.configure(
             connection=connection,
             target_metadata=target_metadata
+            
         )
 
         with context.begin_transaction():

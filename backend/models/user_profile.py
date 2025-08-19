@@ -14,5 +14,5 @@ class UserProfile(Base):
     name = Column(String(100), nullable=True)
     email = Column(String(100), nullable=True)
 
-    # 🔁 역참조: User 모델에서 back_populates="profile" 필요
+    # 역참조: User 모델에서 back_populates="profile" 필요
     user = relationship("User", back_populates="profile")

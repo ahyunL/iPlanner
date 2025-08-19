@@ -277,13 +277,15 @@ final String todoText = _extractPlanName(todoTextRaw);
     );
   }
 
+  //8월 13일 민경 함수 교체 
   Future<void> _confirmDeleteSubject(String subject) async {
     final todoProvider = Provider.of<TodoProvider>(context, listen: false);
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('과목 삭제'),
-        content: const Text('정말 이 과목과 관련된 모든 계획을 삭제하시겠습니까?'),
+        content: const Text('이 과목의 모든 계획/자료를 먼저 삭제한 뒤 과목을 삭제합니다. 계속할까요?'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')),
           TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('삭제')),
@@ -291,32 +293,73 @@ final String todoText = _extractPlanName(todoTextRaw);
       ),
     );
 
-    if (confirmed == true) {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('accessToken');
-      final subjectId = todoProvider.subjectIds[subject.trim()];
-      print("🧪 삭제 요청한 subject: '$subject'");
-      print("🧪 등록된 subjectIds 키 목록: ${todoProvider.subjectIds.keys}");
-      print("🧪 매칭된 subjectId: $subjectId");
+    if (confirmed != true) return;
 
-      if (token != null && subjectId != null) {
-        final response = await http.delete(
-          Uri.parse('${Env.baseUrl}/subject/$subjectId'),
-          headers: {'Authorization': 'Bearer $token'},
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('accessToken');
+    final subjectId = todoProvider.subjectIds[subject.trim()];
+
+    if (token == null || subjectId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('토큰 또는 과목 ID가 없습니다. 다시 시도하세요.')),
+      );
+      return;
+    }
+
+    try {
+      // 1) 과목의 Plan 전부 삭제
+      final resPlan = await http.delete(
+        Uri.parse('${Env.baseUrl}/plan/by-subject/$subjectId'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      if (resPlan.statusCode != 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('계획 전체 삭제 실패: ${resPlan.body}')),
         );
-
-        if (response.statusCode == 200) {
-          final provider = Provider.of<TodoProvider>(context, listen: false);
-          await provider.fetchTodosFromDB();
-          await provider.fetchTodayTodosGrouped();
-          provider.syncCheckedWithTodos();
-          setState(() {});
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('삭제 실패: ${response.body}')));
-        }
+        return; // 더 진행하지 않음
       }
+
+      // 2) 과목의 RowPlan 전부 삭제
+      final resRow = await http.delete(
+        Uri.parse('${Env.baseUrl}/row-plan/by-subject/$subjectId'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      if (resRow.statusCode != 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('학습자료 전체 삭제 실패: ${resRow.body}')),
+        );
+        return;
+      }
+
+      // 3) 마지막으로 과목 삭제
+      final resSubject = await http.delete(
+        Uri.parse('${Env.baseUrl}/subject/$subjectId'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      if (resSubject.statusCode != 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('과목 삭제 실패: ${resSubject.body}')),
+        );
+        return;
+      }
+
+      // 🔄 목록 갱신
+      final provider = Provider.of<TodoProvider>(context, listen: false);
+      await provider.fetchTodosFromDB();
+      await provider.fetchTodayTodosGrouped();
+      provider.syncCheckedWithTodos();
+      setState(() {});
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('과목 및 모든 계획/자료가 삭제되었습니다.')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('네트워크 오류: $e')),
+      );
     }
   }
+
 
     Future<void> _confirmDeletePlan(int planId) async {
     final confirmed = await showDialog<bool>(
@@ -451,3 +494,5 @@ final String todoText = _extractPlanName(todoTextRaw);
     );
   }
 }
+
+

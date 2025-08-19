@@ -44,3 +44,9 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
+# 환경변수 및 민감정보
+.env
+*.env
+config.yaml
+secrets.yaml
+settings.py

@@ -9,6 +9,9 @@ environment:
   sdk: '>=3.7.0 <4.0.0'
 
 dependencies:
+  flutter_markdown: ^0.6.18 #8/12병합
+
+  flutter_dotenv: ^5.1.0 #8/12병합
   flutter:
     sdk: flutter
   intl: ^0.19.0 #민경은 0.19.0 수민 코드는 0.20.2
@@ -27,6 +30,10 @@ dependencies:
   file_selector: ^1.0.1
   cached_network_image: ^3.3.1
   phosphor_flutter: ^2.1.0
+  fl_chart: ^0.66.0  # (>=0.55.0 이상이면 AxisTitles/SideTitles 지원)
+  share_plus: ^7.2.1
+  path_provider: ^2.1.4
+  pdf: ^3.10.8     # 최신 근처 버전 사용
   
 dev_dependencies:
   flutter_test:
@@ -39,3 +46,4 @@ flutter:
     - assets/logo2.png
     - assets/logo_without_letter.png
     - assets/note_placeholder.png
+    - assets/.env
